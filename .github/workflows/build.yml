@@ -16,19 +16,13 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Set up Flutter / Android SDK
-        uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
-
       - name: Install Flet and Dependencies
         run: |
           pip install flet yt-dlp mutagen
-          npm install -g app-builder-bin
 
       - name: Build Android APK
         run: |
-          flet build apk
+          yes | flet build apk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
