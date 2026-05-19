@@ -1,0 +1,38 @@
+name: Build Seal APK
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Flutter / Android SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Install Flet and Dependencies
+        run: |
+          pip install flet yt-dlp mutagen
+          npm install -g app-builder-bin
+
+      - name: Build Android APK
+        run: |
+          flet build apk --main "main.py" --assets "assets"
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Seal-Official-APK
+          path: build/apk/*.apk
+          
