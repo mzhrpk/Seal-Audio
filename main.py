@@ -24,7 +24,6 @@ def main(page: ft.Page):
         downloads_view.visible = (index == 2)
         page.update()
 
-    # الشاشة الرئيسية
     url_input = ft.TextField(
         label="Video link",
         border_color="#8C9388",
@@ -45,7 +44,6 @@ def main(page: ft.Page):
         padding=20
     )
 
-    # واجهة الإعدادات
     settings_view = ft.Container(
         content=ft.Column([
             ft.Text("Settings", size=32, color="#E2E3DC"),
@@ -59,14 +57,13 @@ def main(page: ft.Page):
         padding=20
     )
 
-    # واجهة التنزيلات
     downloads_view = ft.Container(
         content=ft.Column([
             ft.Text("Downloads", size=32, color="#E2E3DC"),
             ft.Row([ft.ChoiceChip(label=ft.Text("Audio"), selected=True), ft.ChoiceChip(label=ft.Text("Video"), selected=False)]),
             ft.VerticalDivider(height=20, color=ft.colors.TRANSPARENT),
             ft.Row([
-                ft.Image(src="assets/seal_icon.png", width=80, height=80, fit=ft.ImageFit.COVER, radius=10),
+                ft.Image(src="seal_icon.png", width=80, height=80, fit=ft.ImageFit.COVER, border_radius=10),
                 ft.Column([
                     ft.Text("SBR JoJo Part 8 - Preview", weight=ft.FontWeight.BOLD, size=16),
                     ft.Text("Warner Bros. Japan Anime", size=12, color="#8C9388"),
@@ -134,6 +131,7 @@ def main(page: ft.Page):
         ], expand=True),
         nav_bar
     )
+    page.update()
 
-ft.app(target=main)
-  
+# إخبار الأندرويد بمكان مجلد الصور بشكل رسمي
+ft.app(target=main, assets_dir="assets")
