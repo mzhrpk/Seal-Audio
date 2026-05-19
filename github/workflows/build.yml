@@ -8,12 +8,9 @@ jobs:
       
       - name: Organize Project Structure
         run: |
-          # 1. إنشاء الهيكلية الصحيحة
           mkdir -p app/src/main/java/com/seal/app/ui/theme app/src/main/java/com/seal/app/ui/screens
           mkdir -p app/src/main/java/com/seal/app/ui/components app/src/main/java/com/seal/app/viewmodel
           mkdir -p app/src/main/java/com/seal/app/util app/src/main/assets app/src/main/res/values
-          
-          # 2. نقل الملفات من المجلد الرئيسي إلى أماكنها الصحيحة
           mv ui/* app/src/main/java/com/seal/app/ui/ || true
           mv util/* app/src/main/java/com/seal/app/util/ || true
           mv viewmodel/* app/src/main/java/com/seal/app/viewmodel/ || true
