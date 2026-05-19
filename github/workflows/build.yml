@@ -1,0 +1,446 @@
+name: Build Seal APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept licenses and install SDK
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+
+      - name: Create directory structure
+        run: |
+          mkdir -p app/src/main/java/com/seal/app/ui/theme
+          mkdir -p app/src/main/java/com/seal/app/ui/screens
+          mkdir -p app/src/main/java/com/seal/app/ui/components
+          mkdir -p app/src/main/java/com/seal/app/viewmodel
+          mkdir -p app/src/main/java/com/seal/app/util
+          mkdir -p app/src/main/assets
+          mkdir -p app/src/main/res/values
+          mkdir -p gradle/wrapper
+
+      - name: Write Gradle files
+        run: |
+          cat > settings.gradle.kts << 'SEAL_EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "Seal"
+          include(":app")
+          SEAL_EOF
+
+          cat > build.gradle.kts << 'SEAL_EOF'
+          plugins {
+              id("com.android.application") version "8.2.0" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.21" apply false
+          }
+          SEAL_EOF
+
+          cat > app/build.gradle.kts << 'SEAL_EOF'
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+          }
+
+          android {
+              namespace = "com.seal.app"
+              compileSdk = 34
+
+              defaultConfig {
+                  applicationId = "com.seal.app"
+                  minSdk = 26
+                  targetSdk = 34
+                  versionCode = 1
+                  versionName = "1.0.0"
+              }
+
+              buildTypes {
+                  release {
+                      isMinifyEnabled = false
+                      proguardFiles(
+                          getDefaultProguardFile("proguard-android-optimize.txt"),
+                          "proguard-rules.pro"
+                      )
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+
+              kotlinOptions { jvmTarget = "17" }
+
+              buildFeatures { compose = true }
+
+              composeOptions {
+                  kotlinCompilerExtensionVersion = "1.5.6"
+              }
+
+              packaging {
+                  resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+              }
+          }
+
+          dependencies {
+              val composeBom = platform("androidx.compose:compose-bom:2024.01.00")
+              implementation(composeBom)
+              implementation("androidx.core:core-ktx:1.12.0")
+              implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
+              implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+              implementation("androidx.activity:activity-compose:1.8.2")
+              implementation("androidx.compose.ui:ui")
+              implementation("androidx.compose.ui:ui-graphics")
+              implementation("androidx.compose.ui:ui-tooling-preview")
+              implementation("androidx.compose.material3:material3")
+              implementation("androidx.compose.material:material-icons-extended")
+              implementation("androidx.navigation:navigation-compose:2.7.6")
+              implementation("androidx.work:work-runtime-ktx:2.9.0")
+              debugImplementation("androidx.compose.ui:ui-tooling")
+          }
+          SEAL_EOF
+
+          touch app/proguard-rules.pro
+
+      - name: Write AndroidManifest
+        run: |
+          cat > app/src/main/AndroidManifest.xml << 'SEAL_EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+                  android:maxSdkVersion="29"/>
+              <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+                  android:maxSdkVersion="32"/>
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+              <application
+                  android:allowBackup="true"
+                  android:label="Seal"
+                  android:theme="@style/Theme.Seal"
+                  android:requestLegacyExternalStorage="true">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:windowSoftInputMode="adjustResize">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                      <intent-filter>
+                          <action android:name="android.intent.action.SEND"/>
+                          <category android:name="android.intent.category.DEFAULT"/>
+                          <data android:mimeType="text/plain"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          SEAL_EOF
+
+      - name: Write resource files
+        run: |
+          cat > app/src/main/res/values/strings.xml << 'SEAL_EOF'
+          <resources>
+              <string name="app_name">Seal</string>
+          </resources>
+          SEAL_EOF
+
+          cat > app/src/main/res/values/themes.xml << 'SEAL_EOF'
+          <resources>
+              <style name="Theme.Seal" parent="android:Theme.Material.NoTitleBar">
+                  <item name="android:windowBackground">#111210</item>
+              </style>
+          </resources>
+          SEAL_EOF
+
+      - name: Write theme files
+        run: |
+          cat > app/src/main/java/com/seal/app/ui/theme/Color.kt << 'SEAL_EOF'
+          package com.seal.app.ui.theme
+          import androidx.compose.ui.graphics.Color
+          val Primary            = Color(0xFF98D68A)
+          val OnPrimary          = Color(0xFF14380E)
+          val PrimaryContainer   = Color(0xFF2B5023)
+          val OnPrimaryContainer = Color(0xFFB4F3A4)
+          val Background         = Color(0xFF111210)
+          val OnBackground       = Color(0xFFE2E3DC)
+          val Surface            = Color(0xFF1A1C18)
+          val OnSurface          = Color(0xFFE2E3DC)
+          val SurfaceVariant     = Color(0xFF424940)
+          val OnSurfaceVariant   = Color(0xFF8C9388)
+          val Outline            = Color(0xFF8C9388)
+          val Error              = Color(0xFFFFB4AB)
+          val OnError            = Color(0xFF690005)
+          SEAL_EOF
+
+          cat > app/src/main/java/com/seal/app/ui/theme/Type.kt << 'SEAL_EOF'
+          package com.seal.app.ui.theme
+          import androidx.compose.material3.Typography
+          import androidx.compose.ui.text.TextStyle
+          import androidx.compose.ui.text.font.FontWeight
+          import androidx.compose.ui.unit.sp
+          val Typography = Typography(
+              displayLarge = TextStyle(fontWeight = FontWeight.Bold,     fontSize = 57.sp, letterSpacing = (-0.25).sp),
+              titleLarge   = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 22.sp),
+              bodyLarge    = TextStyle(fontWeight = FontWeight.Normal,   fontSize = 16.sp, lineHeight = 24.sp),
+              labelSmall   = TextStyle(fontWeight = FontWeight.Medium,   fontSize = 11.sp)
+          )
+          SEAL_EOF
+
+          cat > app/src/main/java/com/seal/app/ui/theme/Theme.kt << 'SEAL_EOF'
+          package com.seal.app.ui.theme
+          import androidx.compose.material3.*
+          import androidx.compose.runtime.Composable
+          private val DarkColorScheme = darkColorScheme(
+              primary            = Primary,
+              onPrimary          = OnPrimary,
+              primaryContainer   = PrimaryContainer,
+              onPrimaryContainer = OnPrimaryContainer,
+              background         = Background,
+              onBackground       = OnBackground,
+              surface            = Surface,
+              onSurface          = OnSurface,
+              surfaceVariant     = SurfaceVariant,
+              onSurfaceVariant   = OnSurfaceVariant,
+              outline            = Outline,
+              error              = Error,
+              onError            = OnError,
+              secondary          = PrimaryContainer,
+              onSecondary        = OnPrimaryContainer,
+          )
+          @Composable
+          fun SealTheme(content: @Composable () -> Unit) {
+              MaterialTheme(
+                  colorScheme = DarkColorScheme,
+                  typography  = Typography,
+                  content     = content
+              )
+          }
+          SEAL_EOF
+
+      - name: Write MainActivity
+        run: |
+          cat > app/src/main/java/com/seal/app/MainActivity.kt << 'SEAL_EOF'
+          package com.seal.app
+
+          import android.os.Bundle
+          import androidx.activity.ComponentActivity
+          import androidx.activity.compose.setContent
+          import androidx.activity.viewModels
+          import androidx.compose.foundation.layout.fillMaxSize
+          import androidx.compose.foundation.layout.padding
+          import androidx.compose.material.icons.Icons
+          import androidx.compose.material.icons.filled.Home
+          import androidx.compose.material.icons.filled.Settings
+          import androidx.compose.material.icons.outlined.FolderOpen
+          import androidx.compose.material3.*
+          import androidx.compose.runtime.*
+          import androidx.compose.ui.Modifier
+          import androidx.core.view.WindowCompat
+          import androidx.navigation.NavDestination.Companion.hierarchy
+          import androidx.navigation.NavGraph.Companion.findStartDestination
+          import androidx.navigation.compose.*
+          import com.seal.app.ui.screens.HomeScreen
+          import com.seal.app.ui.screens.LibraryScreen
+          import com.seal.app.ui.screens.SettingsScreen
+          import com.seal.app.ui.theme.SealTheme
+          import com.seal.app.viewmodel.DownloadViewModel
+
+          sealed class Screen(val route: String) {
+              object Home     : Screen("home")
+              object Settings : Screen("settings")
+              object Library  : Screen("library")
+          }
+
+          class MainActivity : ComponentActivity() {
+              private val viewModel: DownloadViewModel by viewModels()
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  WindowCompat.setDecorFitsSystemWindows(window, false)
+                  val sharedUrl = intent?.getStringExtra(android.content.Intent.EXTRA_TEXT)
+                  setContent {
+                      SealTheme { SealApp(viewModel = viewModel, sharedUrl = sharedUrl) }
+                  }
+              }
+          }
+
+          @Composable
+          fun SealApp(viewModel: DownloadViewModel, sharedUrl: String?) {
+              val navController = rememberNavController()
+              val navItems = listOf(
+                  Triple(Screen.Home,     Icons.Filled.Home,        "Home"),
+                  Triple(Screen.Settings, Icons.Filled.Settings,    "Settings"),
+                  Triple(Screen.Library,  Icons.Outlined.FolderOpen,"Library"),
+              )
+              Scaffold(
+                  modifier       = Modifier.fillMaxSize(),
+                  containerColor = MaterialTheme.colorScheme.background,
+                  bottomBar = {
+                      NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                          val navBackStackEntry by navController.currentBackStackEntryAsState()
+                          val currentDest = navBackStackEntry?.destination
+                          navItems.forEach { (screen, icon, label) ->
+                              NavigationBarItem(
+                                  selected = currentDest?.hierarchy?.any { it.route == screen.route } == true,
+                                  onClick  = {
+                                      navController.navigate(screen.route) {
+                                          popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                          launchSingleTop = true
+                                          restoreState    = true
+                                      }
+                                  },
+                                  icon   = { Icon(icon, contentDescription = label) },
+                                  label  = { Text(label) },
+                                  colors = NavigationBarItemDefaults.colors(
+                                      selectedIconColor   = MaterialTheme.colorScheme.onPrimaryContainer,
+                                      indicatorColor      = MaterialTheme.colorScheme.primaryContainer,
+                                      unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                  )
+                              )
+                          }
+                      }
+                  }
+              ) { innerPadding ->
+                  NavHost(
+                      navController    = navController,
+                      startDestination = Screen.Home.route,
+                      modifier         = Modifier.padding(innerPadding)
+                  ) {
+                      composable(Screen.Home.route)     { HomeScreen(viewModel = viewModel, sharedUrl = sharedUrl) }
+                      composable(Screen.Settings.route) { SettingsScreen(viewModel = viewModel) }
+                      composable(Screen.Library.route)  { LibraryScreen() }
+                  }
+              }
+          }
+          SEAL_EOF
+
+      - name: Write screen files
+        run: |
+          cat > app/src/main/java/com/seal/app/ui/screens/HomeScreen.kt << 'SEAL_EOF'
+          package com.seal.app.ui.screens
+
+          import androidx.compose.animation.AnimatedVisibility
+          import androidx.compose.foundation.layout.*
+          import androidx.compose.foundation.shape.CircleShape
+          import androidx.compose.foundation.shape.RoundedCornerShape
+          import androidx.compose.material.icons.Icons
+          import androidx.compose.material.icons.filled.ContentPaste
+          import androidx.compose.material.icons.filled.Download
+          import androidx.compose.material3.*
+          import androidx.compose.runtime.*
+          import androidx.compose.ui.Alignment
+          import androidx.compose.ui.Modifier
+          import androidx.compose.ui.platform.LocalClipboardManager
+          import androidx.compose.ui.text.font.FontWeight
+          import androidx.compose.ui.unit.dp
+          import androidx.compose.ui.unit.sp
+          import com.seal.app.ui.components.DownloadBottomSheet
+          import com.seal.app.viewmodel.DownloadViewModel
+
+          @OptIn(ExperimentalMaterial3Api::class)
+          @Composable
+          fun HomeScreen(viewModel: DownloadViewModel, sharedUrl: String?) {
+              var urlText       by remember { mutableStateOf(sharedUrl ?: "") }
+              var showSheet     by remember { mutableStateOf(false) }
+              val clipboard         = LocalClipboardManager.current
+              val downloadState by viewModel.downloadState.collectAsState()
+
+              if (showSheet) {
+                  DownloadBottomSheet(
+                      url        = urlText,
+                      onDismiss  = { showSheet = false },
+                      onDownload = { type ->
+                          showSheet = false
+                          viewModel.startDownload(urlText, type)
+                      }
+                  )
+              }
+
+              Box(modifier = Modifier.fillMaxSize()) {
+                  Column(
+                      modifier            = Modifier.fillMaxSize().padding(horizontal = 24.dp),
+                      horizontalAlignment = Alignment.CenterHorizontally
+                  ) {
+                      Spacer(modifier = Modifier.height(64.dp))
+                      Text(
+                          text  = "Seal",
+                          style = MaterialTheme.typography.displayLarge.copy(
+                              fontWeight = FontWeight.ExtraBold,
+                              fontSize   = 72.sp,
+                              color      = MaterialTheme.colorScheme.primary
+                          )
+                      )
+                      Text(
+                          text  = "Media Downloader",
+                          style = MaterialTheme.typography.bodyLarge,
+                          color = MaterialTheme.colorScheme.onSurfaceVariant
+                      )
+                      Spacer(modifier = Modifier.height(48.dp))
+                      OutlinedTextField(
+                          value         = urlText,
+                          onValueChange = { urlText = it },
+                          modifier      = Modifier.fillMaxWidth(),
+                          label         = { Text("Video link") },
+                          placeholder   = { Text("https://...") },
+                          singleLine    = true,
+                          shape         = RoundedCornerShape(16.dp),
+                          colors        = OutlinedTextFieldDefaults.colors(
+                              focusedBorderColor   = MaterialTheme.colorScheme.primary,
+                              unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                              focusedLabelColor    = MaterialTheme.colorScheme.primary,
+                              cursorColor          = MaterialTheme.colorScheme.primary,
+                          )
+                      )
+                      Spacer(modifier = Modifier.height(24.dp))
+                      AnimatedVisibility(visible = downloadState.isNotEmpty()) {
+                          Card(
+                              modifier = Modifier.fillMaxWidth(),
+                              colors   = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                              shape    = RoundedCornerShape(12.dp)
+                          ) {
+                              Text(
+                                  text     = downloadState,
+                                  modifier = Modifier.padding(16.dp),
+                                  style    = MaterialTheme.typography.bodyMedium,
+                                  color    = MaterialTheme.colorScheme.onSurface
+                              )
+                          }
+                      }
+                  }
+
+                  Column(
+                      modifier            = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 24.dp),
+                      horizontalAlignment = Alignment.End,
+                      verticalArrangement = Arrangement.spacedBy(12.dp)
+                  ) {
+                      SmallFloatingActionButton(
+                          onClick        = { clipboard.getText()?.text?.let { urlText = it } 
