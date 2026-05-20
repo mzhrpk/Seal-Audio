@@ -176,7 +176,6 @@ jobs:
               <application
                   android:name=".SealApplication"
                   android:allowBackup="true"
-                  android:roundIcon="@mipmap/ic_launcher_round"
                   android:supportsRtl="true"
                   android:theme="@style/Theme.Seal"
                   android:extractNativeLibs="true"
