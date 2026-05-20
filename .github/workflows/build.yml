@@ -436,7 +436,7 @@ jobs:
           }
           EOF
 
-      - name: Write MainActivity.kt
+      -       - name: Write MainActivity.kt
         run: |
           cat > app/src/main/java/com/example/seal/MainActivity.kt << 'EOF'
           package com.example.seal
@@ -448,6 +448,7 @@ jobs:
           import androidx.compose.foundation.layout.fillMaxSize
           import androidx.compose.foundation.layout.padding
           import androidx.compose.material.icons.Icons
+          import androidx.compose.material.icons.filled.Home
           import androidx.compose.material.icons.filled.Settings
           import androidx.compose.material.icons.outlined.FolderOpen
           import androidx.compose.material3.*
@@ -457,12 +458,14 @@ jobs:
           import androidx.navigation.NavDestination.Companion.hierarchy
           import androidx.navigation.NavGraph.Companion.findStartDestination
           import androidx.navigation.compose.*
+          import com.example.seal.ui.screens.HomeScreen
           import com.example.seal.ui.screens.LibraryScreen
           import com.example.seal.ui.screens.SettingsScreen
           import com.example.seal.ui.theme.SealTheme
           import com.example.seal.viewmodel.DownloadViewModel
 
           sealed class Screen(val route: String) {
+              object Home     : Screen("home")
               object Settings : Screen("settings")
               object Library  : Screen("library")
           }
@@ -483,6 +486,7 @@ jobs:
           fun SealApp(viewModel: DownloadViewModel, sharedUrl: String?) {
               val navController = rememberNavController()
               val navItems = listOf(
+                  Triple(Screen.Home,     Icons.Filled.Home,         "Home"),
                   Triple(Screen.Settings, Icons.Filled.Settings,     "Settings"),
                   Triple(Screen.Library,  Icons.Outlined.FolderOpen, "Library"),
               )
@@ -517,15 +521,154 @@ jobs:
               ) { innerPadding ->
                   NavHost(
                       navController    = navController,
-                      startDestination = Screen.Library.route,
+                      startDestination = Screen.Home.route,
                       modifier         = Modifier.padding(innerPadding)
                   ) {
+                      composable(Screen.Home.route)     { HomeScreen(viewModel = viewModel, sharedUrl = sharedUrl) }
                       composable(Screen.Settings.route) { SettingsScreen(viewModel = viewModel) }
                       composable(Screen.Library.route)  { LibraryScreen() }
                   }
               }
           }
           EOF
+
+      - name: Write HomeScreen.kt
+        run: |
+          cat > app/src/main/java/com/example/seal/ui/screens/HomeScreen.kt << 'EOF'
+          package com.example.seal.ui.screens
+
+          import androidx.compose.animation.AnimatedVisibility
+          import androidx.compose.foundation.layout.*
+          import androidx.compose.foundation.shape.CircleShape
+          import androidx.compose.foundation.shape.RoundedCornerShape
+          import androidx.compose.material.icons.Icons
+          import androidx.compose.material.icons.filled.ContentPaste
+          import androidx.compose.material.icons.filled.Download
+          import androidx.compose.material3.*
+          import androidx.compose.runtime.*
+          import androidx.compose.ui.Alignment
+          import androidx.compose.ui.Modifier
+          import androidx.compose.ui.platform.LocalClipboardManager
+          import androidx.compose.ui.text.font.FontWeight
+          import androidx.compose.ui.unit.dp
+          import androidx.compose.ui.unit.sp
+          import com.example.seal.ui.components.DownloadBottomSheet
+          import com.example.seal.ui.components.DownloadType
+          import com.example.seal.viewmodel.DownloadState
+          import com.example.seal.viewmodel.DownloadViewModel
+
+          @OptIn(ExperimentalMaterial3Api::class)
+          @Composable
+          fun HomeScreen(viewModel: DownloadViewModel, sharedUrl: String?) {
+              var urlText       by remember { mutableStateOf(sharedUrl ?: "") }
+              var showSheet     by remember { mutableStateOf(false) }
+              val clipboard     = LocalClipboardManager.current
+              val downloadState by viewModel.downloadState.collectAsState()
+
+              if (showSheet) {
+                  DownloadBottomSheet(
+                      url        = urlText,
+                      onDismiss  = { showSheet = false },
+                      onDownload = { type ->
+                          showSheet = false
+                          viewModel.startDownload(urlText, type == DownloadType.AUDIO)
+                      }
+                  )
+              }
+
+              Box(modifier = Modifier.fillMaxSize()) {
+                  Column(
+                      modifier            = Modifier.fillMaxSize().padding(horizontal = 24.dp),
+                      horizontalAlignment = Alignment.CenterHorizontally
+                  ) {
+                      Spacer(modifier = Modifier.height(64.dp))
+                      Text(
+                          text  = "Seal",
+                          style = MaterialTheme.typography.displayLarge.copy(
+                              fontWeight = FontWeight.ExtraBold,
+                              fontSize   = 72.sp,
+                              color      = MaterialTheme.colorScheme.primary
+                          )
+                      )
+                      Text(
+                          text  = "Media Downloader",
+                          style = MaterialTheme.typography.bodyLarge,
+                          color = MaterialTheme.colorScheme.onSurfaceVariant
+                      )
+                      Spacer(modifier = Modifier.height(48.dp))
+                      OutlinedTextField(
+                          value         = urlText,
+                          onValueChange = { urlText = it },
+                          modifier      = Modifier.fillMaxWidth(),
+                          label         = { Text("Video link") },
+                          placeholder   = { Text("https://...") },
+                          singleLine    = true,
+                          shape         = RoundedCornerShape(16.dp),
+                          colors        = OutlinedTextFieldDefaults.colors(
+                              focusedBorderColor   = MaterialTheme.colorScheme.primary,
+                              unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                              focusedLabelColor    = MaterialTheme.colorScheme.primary,
+                              cursorColor          = MaterialTheme.colorScheme.primary,
+                          )
+                      )
+                      Spacer(modifier = Modifier.height(24.dp))
+                      
+                      val stateText = when (val s = downloadState) {
+                          is DownloadState.Idle -> ""
+                          is DownloadState.Loading -> "جاري بدء التحميل..."
+                          is DownloadState.Progress -> "%.1f%% - %s".format(s.percent, s.message)
+                          is DownloadState.Success -> "تم التحميل بنجاح!\n${s.filePath}"
+                          is DownloadState.Error -> "خطأ: ${s.message}"
+                      }
+
+                      AnimatedVisibility(visible = stateText.isNotEmpty()) {
+                          Card(
+                              modifier = Modifier.fillMaxWidth(),
+                              colors   = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                              shape    = RoundedCornerShape(12.dp)
+                          ) {
+                              Text(
+                                  text     = stateText,
+                                  modifier = Modifier.padding(16.dp),
+                                  style    = MaterialTheme.typography.bodyMedium,
+                                  color    = MaterialTheme.colorScheme.onSurface
+                              )
+                          }
+                      }
+                  }
+                  Column(
+                      modifier            = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 24.dp),
+                      horizontalAlignment = Alignment.End,
+                      verticalArrangement = Arrangement.spacedBy(12.dp)
+                  ) {
+                      SmallFloatingActionButton(
+                          onClick        = { clipboard.getText()?.text?.let { urlText = it } },
+                          shape          = CircleShape,
+                          containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                          contentColor   = MaterialTheme.colorScheme.onSurfaceVariant
+                      ) {
+                          Icon(Icons.Filled.ContentPaste, contentDescription = "Paste", modifier = Modifier.size(20.dp))
+                      }
+                      FloatingActionButton(
+                          onClick        = { if (urlText.isNotBlank()) showSheet = true },
+                          shape          = RoundedCornerShape(16.dp),
+                          containerColor = MaterialTheme.colorScheme.primary,
+                          contentColor   = MaterialTheme.colorScheme.onPrimary
+                      ) {
+                          Row(
+                              verticalAlignment = Alignment.CenterVertically,
+                              modifier          = Modifier.padding(horizontal = 16.dp)
+                          ) {
+                              Icon(Icons.Filled.Download, contentDescription = "Download")
+                              Spacer(modifier = Modifier.width(8.dp))
+                              Text("Download", fontWeight = FontWeight.SemiBold)
+                          }
+                      }
+                  }
+              }
+          }
+          EOF
+
 
       - name: Write LibraryScreen.kt
         run: |
