@@ -245,15 +245,22 @@ jobs:
                       return
                   }
                   viewModelScope.launch {
-                      _downloadState.value = DownloadState.Loading
                       withContext(Dispatchers.IO) {
                           try {
+                              // 1. تحديث المحرك بصمت لتجاوز حماية يوتيوب الجديدة
+                              _downloadState.value = DownloadState.Progress(0f, "جاري تحديث المحرك...")
+                              YoutubeDL.getInstance().updateYoutubeDL(getApplication())
+
+                              // 2. بدء التحميل
+                              _downloadState.value = DownloadState.Loading
                               val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
                               val outputDir = File(downloadsDir, "Seal").also { it.mkdirs() }
                               val outputTemplate = File(outputDir, "%(title)s.%(ext)s").absolutePath
                               val request = YoutubeDLRequest(url).apply {
                                   addOption("-o", outputTemplate)
                                   addOption("--no-playlist")
+                                  addOption("--no-warnings") // لجم التحذيرات المزعجة
+                                  addOption("--no-update")
                                   if (audioOnly) {
                                       addOption("-x")
                                       addOption("--audio-format", "mp3")
@@ -280,6 +287,7 @@ jobs:
               }
           }
           EOF
+
 
       - name: Create UI directories and files
         run: |
