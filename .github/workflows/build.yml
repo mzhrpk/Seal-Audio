@@ -450,12 +450,13 @@ jobs:
               ) { innerPadding ->
                   NavHost(navController = navController, startDestination = Screen.Home.route, modifier = Modifier.padding(innerPadding)) {
                       composable(Screen.Home.route) { HomeScreen(viewModel = viewModel, sharedUrl = sharedUrl) }
-                      composable(Screen.Settings.route) { SettingsScreen() }
+                      composable(Screen.Settings.route) { SettingsScreen(viewModel = viewModel) }
                       composable(Screen.Library.route) { LibraryScreen() }
                   }
               }
           }
           EOF
+
 
       - name: Write HomeScreen.kt
         run: |
