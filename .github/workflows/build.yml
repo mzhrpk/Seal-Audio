@@ -157,7 +157,7 @@ jobs:
       # 5. كتابة AndroidManifest.xml
       # ─────────────────────────────────────────
       - name: Write AndroidManifest.xml
-        run: |
+        run:  mkdir -p app/src/main
           cat > app/src/main/AndroidManifest.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
