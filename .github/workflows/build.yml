@@ -2,7 +2,9 @@ name: Build Seal APK
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
@@ -10,46 +12,25 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup JDK 17
+      # ─────────────────────────────────────────
+      # 1. إعداد Java 17
+      # ─────────────────────────────────────────
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
+          cache: gradle
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Accept licenses and install SDK
-        run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
-
-      - name: Create directory structure
-        run: |
-          mkdir -p app/src/main/java/com/seal/app/ui/theme
-          mkdir -p app/src/main/java/com/seal/app/ui/screens
-          mkdir -p app/src/main/java/com/seal/app/ui/components
-          mkdir -p app/src/main/java/com/seal/app/viewmodel
-          mkdir -p app/src/main/java/com/seal/app/util
-          mkdir -p app/src/main/assets
-          mkdir -p app/src/main/res/values
-          mkdir -p gradle/wrapper
-
-      - name: Write gradle.properties
-        run: |
-          cat > gradle.properties << 'SEAL_EOF'
-          android.useAndroidX=true
-          android.enableJetifier=true
-          org.gradle.jvmargs=-Xmx3072m -Dfile.encoding=UTF-8
-          kotlin.code.style=official
-          SEAL_EOF
-
+      # ─────────────────────────────────────────
+      # 2. كتابة settings.gradle.kts
+      # ─────────────────────────────────────────
       - name: Write settings.gradle.kts
         run: |
-          cat > settings.gradle.kts << 'SEAL_EOF'
+          cat > settings.gradle.kts << 'EOF'
           pluginManagement {
               repositories {
                   google()
@@ -62,42 +43,49 @@ jobs:
               repositories {
                   google()
                   mavenCentral()
-                  maven { url = uri("https://jitpack.io") }
               }
           }
           rootProject.name = "Seal"
           include(":app")
-          SEAL_EOF
+          EOF
 
+      # ─────────────────────────────────────────
+      # 3. كتابة build.gradle.kts (المشروع الجذر)
+      # ─────────────────────────────────────────
       - name: Write root build.gradle.kts
         run: |
-          cat > build.gradle.kts << 'SEAL_EOF'
+          cat > build.gradle.kts << 'EOF'
           plugins {
-              id("com.android.application") version "8.2.0" apply false
-              id("org.jetbrains.kotlin.android") version "1.9.21" apply false
+              id("com.android.application") version "8.3.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.23" apply false
           }
-          SEAL_EOF
+          EOF
 
+      # ─────────────────────────────────────────
+      # 4. كتابة app/build.gradle.kts
+      # ─────────────────────────────────────────
       - name: Write app/build.gradle.kts
         run: |
-          mkdir -p app
-          cat > app/build.gradle.kts << 'SEAL_EOF'
+          cat > app/build.gradle.kts << 'EOF'
           plugins {
               id("com.android.application")
               id("org.jetbrains.kotlin.android")
           }
 
           android {
-              namespace = "com.seal.app"
+              namespace = "com.example.seal"
               compileSdk = 34
 
               defaultConfig {
-                  applicationId = "com.seal.app"
-                  minSdk = 26
+                  applicationId = "com.example.seal"
+                  minSdk = 29
                   targetSdk = 34
                   versionCode = 1
-                  versionName = "1.0.0"
-                  multiDexEnabled = true
+                  versionName = "1.0"
+
+                  ndk {
+                      abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
+                  }
               }
 
               buildTypes {
@@ -110,92 +98,267 @@ jobs:
                   }
               }
 
+              buildFeatures {
+                  compose = true
+              }
+
+              composeOptions {
+                  kotlinCompilerExtensionVersion = "1.5.11"
+              }
+
               compileOptions {
                   sourceCompatibility = JavaVersion.VERSION_17
                   targetCompatibility = JavaVersion.VERSION_17
               }
 
-              kotlinOptions { jvmTarget = "17" }
-              buildFeatures { compose = true }
-              composeOptions { kotlinCompilerExtensionVersion = "1.5.6" }
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
 
               packaging {
-                  resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
-                  jniLibs {
-                      pickFirsts += "**/*.so"
-                      useLegacyPackaging = true
+                  resources {
+                      excludes += "/META-INF/{AL2.0,LGPL2.1}"
                   }
               }
           }
 
+          val youtubedlAndroid = "0.18.1"
+
           dependencies {
-              val composeBom = platform("androidx.compose:compose-bom:2024.01.00")
+              // ── youtubedl-android (Maven Central) ──────────────────────────
+              implementation("io.github.junkfood02.youtubedl-android:library:$youtubedlAndroid")
+              implementation("io.github.junkfood02.youtubedl-android:ffmpeg:$youtubedlAndroid")
+
+              // ── Jetpack Compose BOM ─────────────────────────────────────────
+              val composeBom = platform("androidx.compose:compose-bom:2024.04.01")
               implementation(composeBom)
-              implementation("androidx.appcompat:appcompat:1.6.1")
-              implementation("androidx.core:core-ktx:1.12.0")
-              implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
-              implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
-              implementation("androidx.activity:activity-compose:1.8.2")
               implementation("androidx.compose.ui:ui")
               implementation("androidx.compose.ui:ui-graphics")
               implementation("androidx.compose.ui:ui-tooling-preview")
               implementation("androidx.compose.material3:material3")
-              implementation("androidx.compose.material:material-icons-extended")
-              implementation("androidx.navigation:navigation-compose:2.7.6")
-              implementation("androidx.work:work-runtime-ktx:2.9.0")
-              implementation("androidx.multidex:multidex:2.0.1")
-              implementation("com.github.yausername.youtubedl-android:library:0.17.3")
-              implementation("com.github.yausername.youtubedl-android:ffmpeg:0.17.3")
-              debugImplementation("androidx.compose.ui:ui-tooling")
-          }
-          SEAL_EOF
-          touch app/proguard-rules.pro
 
+              // ── AndroidX ───────────────────────────────────────────────────
+              implementation("androidx.core:core-ktx:1.13.1")
+              implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
+              implementation("androidx.activity:activity-compose:1.9.0")
+              implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+              implementation("androidx.navigation:navigation-compose:2.7.6")
+
+              // ── Coroutines ─────────────────────────────────────────────────
+              implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
+
+              // ── Debug ───────────────────────────────────────────────────────
+              debugImplementation("androidx.compose.ui:ui-tooling")
+              debugImplementation("androidx.compose.ui:ui-test-manifest")
+          }
+          EOF
+
+      # ─────────────────────────────────────────
+      # 5. كتابة AndroidManifest.xml
+      # ─────────────────────────────────────────
       - name: Write AndroidManifest.xml
         run: |
-          cat > app/src/main/AndroidManifest.xml << 'SEAL_EOF'
+          cat > app/src/main/AndroidManifest.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-              <uses-permission android:name="android.permission.INTERNET"/>
-              <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+                  android:maxSdkVersion="32" />
+              <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+                  android:maxSdkVersion="29" />
+              <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
               <application
                   android:name=".SealApplication"
                   android:allowBackup="true"
-                  android:label="Seal"
+                  android:icon="@mipmap/ic_launcher"
+                  android:label="@string/app_name"
+                  android:roundIcon="@mipmap/ic_launcher_round"
+                  android:supportsRtl="true"
                   android:theme="@style/Theme.Seal"
                   android:extractNativeLibs="true"
-                  android:requestLegacyExternalStorage="false">
+                  android:requestLegacyExternalStorage="true">
 
                   <activity
                       android:name=".MainActivity"
                       android:exported="true"
-                      android:windowSoftInputMode="adjustResize">
+                      android:theme="@style/Theme.Seal">
                       <intent-filter>
-                          <action android:name="android.intent.action.MAIN"/>
-                          <category android:name="android.intent.category.LAUNCHER"/>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
                       </intent-filter>
                       <intent-filter>
-                          <action android:name="android.intent.action.SEND"/>
-                          <category android:name="android.intent.category.DEFAULT"/>
-                          <data android:mimeType="text/plain"/>
+                          <action android:name="android.intent.action.SEND" />
+                          <category android:name="android.intent.category.DEFAULT" />
+                          <data android:mimeType="text/plain" />
                       </intent-filter>
                   </activity>
 
+                  <service
+                      android:name=".service.DownloadService"
+                      android:foregroundServiceType="dataSync"
+                      android:exported="false" />
+
               </application>
           </manifest>
-          SEAL_EOF
+          EOF
+
+      # ─────────────────────────────────────────
+      # 6. كتابة SealApplication.kt
+      # ─────────────────────────────────────────
+      - name: Write SealApplication.kt
+        run: |
+          mkdir -p app/src/main/java/com/example/seal
+          cat > app/src/main/java/com/example/seal/SealApplication.kt << 'EOF'
+          package com.example.seal
+
+          import android.app.Application
+          import android.util.Log
+          import com.yausername.ffmpeg.FFmpeg
+          import com.yausername.youtubedl_android.YoutubeDL
+
+          class SealApplication : Application() {
+
+              override fun onCreate() {
+                  super.onCreate()
+                  try {
+                      YoutubeDL.getInstance().init(this)
+                      FFmpeg.getInstance().init(this)
+                      Log.d("SealApp", "YoutubeDL and FFmpeg initialized successfully")
+                  } catch (e: Exception) {
+                      Log.e("SealApp", "Failed to initialize YoutubeDL: ${e.message}", e)
+                  }
+              }
+          }
+          EOF
+
+      # ─────────────────────────────────────────
+      # 7. كتابة DownloadViewModel.kt
+      # ─────────────────────────────────────────
+      - name: Write DownloadViewModel.kt
+        run: |
+          mkdir -p app/src/main/java/com/example/seal/viewmodel
+          cat > app/src/main/java/com/example/seal/viewmodel/DownloadViewModel.kt << 'EOF'
+          package com.example.seal.viewmodel
+
+          import android.app.Application
+          import android.os.Environment
+          import android.util.Log
+          import androidx.lifecycle.AndroidViewModel
+          import androidx.lifecycle.viewModelScope
+          import com.yausername.youtubedl_android.YoutubeDL
+          import com.yausername.youtubedl_android.YoutubeDLRequest
+          import kotlinx.coroutines.Dispatchers
+          import kotlinx.coroutines.flow.MutableStateFlow
+          import kotlinx.coroutines.flow.StateFlow
+          import kotlinx.coroutines.launch
+          import kotlinx.coroutines.withContext
+          import java.io.File
+
+          sealed class DownloadState {
+              object Idle : DownloadState()
+              object Loading : DownloadState()
+              data class Progress(val percent: Float, val message: String) : DownloadState()
+              data class Success(val filePath: String) : DownloadState()
+              data class Error(val message: String) : DownloadState()
+          }
+
+          class DownloadViewModel(application: Application) : AndroidViewModel(application) {
+
+              private val _downloadState = MutableStateFlow<DownloadState>(DownloadState.Idle)
+              val downloadState: StateFlow<DownloadState> = _downloadState
+
+              fun startDownload(url: String, audioOnly: Boolean = false) {
+                  if (url.isBlank()) {
+                      _downloadState.value = DownloadState.Error("الرجاء إدخال رابط صحيح")
+                      return
+                  }
+
+                  viewModelScope.launch {
+                      _downloadState.value = DownloadState.Loading
+
+                      withContext(Dispatchers.IO) {
+                          try {
+                              val downloadsDir = Environment.getExternalStoragePublicDirectory(
+                                  Environment.DIRECTORY_DOWNLOADS
+                              )
+                              val outputDir = File(downloadsDir, "Seal").also { it.mkdirs() }
+                              val outputTemplate = File(outputDir, "%(title)s.%(ext)s").absolutePath
+
+                              val request = YoutubeDLRequest(url).apply {
+                                  addOption("-o", outputTemplate)
+                                  addOption("--no-playlist")
+                                  if (audioOnly) {
+                                      addOption("-x")
+                                      addOption("--audio-format", "mp3")
+                                      addOption("--audio-quality", "0")
+                                  } else {
+                                      addOption("-f", "bestvideo+bestaudio/best")
+                                      addOption("--merge-output-format", "mp4")
+                                  }
+                                  addOption("--no-check-certificate")
+                                  addOption("--socket-timeout", "30")
+                                  addOption("-R", "3")
+                              }
+
+                              YoutubeDL.getInstance().execute(request) { progress, _, line ->
+                                  _downloadState.value = DownloadState.Progress(
+                                      percent = progress,
+                                      message = line ?: "جاري التحميل..."
+                                  )
+                              }
+
+                              _downloadState.value = DownloadState.Success(outputDir.absolutePath)
+
+                          } catch (e: InterruptedException) {
+                              _downloadState.value = DownloadState.Idle
+                          } catch (e: Exception) {
+                              val errorMsg = e.message ?: "حدث خطأ غير معروف"
+                              Log.e("DownloadViewModel", "Download failed: $errorMsg", e)
+                              _downloadState.value = DownloadState.Error(errorMsg)
+                          }
+                      }
+                  }
+              }
+
+              fun cancelDownload() {
+                  viewModelScope.launch(Dispatchers.IO) {
+                      try {
+                          YoutubeDL.getInstance().destroyProcessById("download_process")
+                      } catch (e: Exception) {
+                          Log.e("DownloadViewModel", "Cancel error: ${e.message}")
+                      }
+                      _downloadState.value = DownloadState.Idle
+                  }
+              }
+
+              fun resetState() {
+                  _downloadState.value = DownloadState.Idle
+              }
+          }
+          EOF
+
+      # ─────────────────────────────────────────
+      # 7.5. إنشاء مجلدات وملفات الواجهة (معدلة بدون HomeScreen)
+      # ─────────────────────────────────────────
+      - name: Create UI directories
+        run: |
+          mkdir -p app/src/main/java/com/example/seal/ui/theme
+          mkdir -p app/src/main/java/com/example/seal/ui/screens
+          mkdir -p app/src/main/java/com/example/seal/ui/components
+          mkdir -p app/src/main/res/values
 
       - name: Write resource files
         run: |
-          cat > app/src/main/res/values/strings.xml << 'SEAL_EOF'
+          cat > app/src/main/res/values/strings.xml << 'EOF'
           <resources>
               <string name="app_name">Seal</string>
           </resources>
-          SEAL_EOF
-
-          cat > app/src/main/res/values/themes.xml << 'SEAL_EOF'
+          EOF
+          cat > app/src/main/res/values/themes.xml << 'EOF'
           <resources>
               <style name="Theme.Seal" parent="Theme.AppCompat.NoActionBar">
                   <item name="android:windowBackground">#111210</item>
@@ -203,12 +366,12 @@ jobs:
                   <item name="android:navigationBarColor">#111210</item>
               </style>
           </resources>
-          SEAL_EOF
+          EOF
 
       - name: Write Color.kt
         run: |
-          cat > app/src/main/java/com/seal/app/ui/theme/Color.kt << 'SEAL_EOF'
-          package com.seal.app.ui.theme
+          cat > app/src/main/java/com/example/seal/ui/theme/Color.kt << 'EOF'
+          package com.example.seal.ui.theme
           import androidx.compose.ui.graphics.Color
           val Primary            = Color(0xFF98D68A)
           val OnPrimary          = Color(0xFF14380E)
@@ -223,12 +386,12 @@ jobs:
           val Outline            = Color(0xFF8C9388)
           val Error              = Color(0xFFFFB4AB)
           val OnError            = Color(0xFF690005)
-          SEAL_EOF
+          EOF
 
       - name: Write Type.kt
         run: |
-          cat > app/src/main/java/com/seal/app/ui/theme/Type.kt << 'SEAL_EOF'
-          package com.seal.app.ui.theme
+          cat > app/src/main/java/com/example/seal/ui/theme/Type.kt << 'EOF'
+          package com.example.seal.ui.theme
           import androidx.compose.material3.Typography
           import androidx.compose.ui.text.TextStyle
           import androidx.compose.ui.text.font.FontWeight
@@ -239,12 +402,12 @@ jobs:
               bodyLarge    = TextStyle(fontWeight = FontWeight.Normal,   fontSize = 16.sp, lineHeight = 24.sp),
               labelSmall   = TextStyle(fontWeight = FontWeight.Medium,   fontSize = 11.sp)
           )
-          SEAL_EOF
+          EOF
 
       - name: Write Theme.kt
         run: |
-          cat > app/src/main/java/com/seal/app/ui/theme/Theme.kt << 'SEAL_EOF'
-          package com.seal.app.ui.theme
+          cat > app/src/main/java/com/example/seal/ui/theme/Theme.kt << 'EOF'
+          package com.example.seal.ui.theme
           import androidx.compose.material3.*
           import androidx.compose.runtime.Composable
           private val DarkColorScheme = darkColorScheme(
@@ -272,89 +435,44 @@ jobs:
                   content     = content
               )
           }
-          SEAL_EOF
-
-      - name: Write SealApplication.kt
-        run: |
-          cat > app/src/main/java/com/seal/app/SealApplication.kt << 'SEAL_EOF'
-          package com.seal.app
-
-          import android.app.Application
-          import android.util.Log
-          import com.yausername.ffmpeg.FFmpeg
-          import com.yausername.youtubedl_android.YoutubeDL
-
-          class SealApplication : Application() {
-              override fun onCreate() {
-                  super.onCreate()
-                  try {
-                      YoutubeDL.getInstance().init(this)
-                      FFmpeg.getInstance().init(this)
-                      Log.d("SealApp", "YoutubeDL initialized successfully")
-                  } catch (e: Exception) {
-                      Log.e("SealApp", "Failed to initialize YoutubeDL: ${e.message}")
-                  }
-              }
-          }
-          SEAL_EOF
+          EOF
 
       - name: Write MainActivity.kt
         run: |
-          cat > app/src/main/java/com/seal/app/MainActivity.kt << 'SEAL_EOF'
-          package com.seal.app
+          cat > app/src/main/java/com/example/seal/MainActivity.kt << 'EOF'
+          package com.example.seal
 
-          import android.Manifest
-          import android.content.pm.PackageManager
-          import android.os.Build
           import android.os.Bundle
           import androidx.activity.ComponentActivity
           import androidx.activity.compose.setContent
-          import androidx.activity.result.contract.ActivityResultContracts
           import androidx.activity.viewModels
           import androidx.compose.foundation.layout.fillMaxSize
           import androidx.compose.foundation.layout.padding
           import androidx.compose.material.icons.Icons
-          import androidx.compose.material.icons.filled.Home
           import androidx.compose.material.icons.filled.Settings
           import androidx.compose.material.icons.outlined.FolderOpen
           import androidx.compose.material3.*
           import androidx.compose.runtime.*
           import androidx.compose.ui.Modifier
-          import androidx.core.content.ContextCompat
           import androidx.core.view.WindowCompat
           import androidx.navigation.NavDestination.Companion.hierarchy
           import androidx.navigation.NavGraph.Companion.findStartDestination
           import androidx.navigation.compose.*
-          import com.seal.app.ui.screens.HomeScreen
-          import com.seal.app.ui.screens.LibraryScreen
-          import com.seal.app.ui.screens.SettingsScreen
-          import com.seal.app.ui.theme.SealTheme
-          import com.seal.app.viewmodel.DownloadViewModel
+          import com.example.seal.ui.screens.LibraryScreen
+          import com.example.seal.ui.screens.SettingsScreen
+          import com.example.seal.ui.theme.SealTheme
+          import com.example.seal.viewmodel.DownloadViewModel
 
           sealed class Screen(val route: String) {
-              object Home     : Screen("home")
               object Settings : Screen("settings")
               object Library  : Screen("library")
           }
 
           class MainActivity : ComponentActivity() {
               private val viewModel: DownloadViewModel by viewModels()
-
-              private val notificationPermissionLauncher = registerForActivityResult(
-                  ActivityResultContracts.RequestPermission()
-              ) { }
-
               override fun onCreate(savedInstanceState: Bundle?) {
                   super.onCreate(savedInstanceState)
                   WindowCompat.setDecorFitsSystemWindows(window, false)
-
-                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                      if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-                          != PackageManager.PERMISSION_GRANTED) {
-                          notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                      }
-                  }
-
                   val sharedUrl = intent?.getStringExtra(android.content.Intent.EXTRA_TEXT)
                   setContent {
                       SealTheme { SealApp(viewModel = viewModel, sharedUrl = sharedUrl) }
@@ -366,7 +484,6 @@ jobs:
           fun SealApp(viewModel: DownloadViewModel, sharedUrl: String?) {
               val navController = rememberNavController()
               val navItems = listOf(
-                  Triple(Screen.Home,     Icons.Filled.Home,         "Home"),
                   Triple(Screen.Settings, Icons.Filled.Settings,     "Settings"),
                   Triple(Screen.Library,  Icons.Outlined.FolderOpen, "Library"),
               )
@@ -401,164 +518,20 @@ jobs:
               ) { innerPadding ->
                   NavHost(
                       navController    = navController,
-                      startDestination = Screen.Home.route,
+                      startDestination = Screen.Library.route,
                       modifier         = Modifier.padding(innerPadding)
                   ) {
-                      composable(Screen.Home.route)     { HomeScreen(viewModel = viewModel, sharedUrl = sharedUrl) }
                       composable(Screen.Settings.route) { SettingsScreen(viewModel = viewModel) }
                       composable(Screen.Library.route)  { LibraryScreen() }
                   }
               }
           }
-          SEAL_EOF
-
-      - name: Write HomeScreen.kt
-        run: |
-          cat > app/src/main/java/com/seal/app/ui/screens/HomeScreen.kt << 'SEAL_EOF'
-          package com.seal.app.ui.screens
-
-          import androidx.compose.animation.AnimatedVisibility
-          import androidx.compose.foundation.layout.*
-          import androidx.compose.foundation.shape.CircleShape
-          import androidx.compose.foundation.shape.RoundedCornerShape
-          import androidx.compose.material.icons.Icons
-          import androidx.compose.material.icons.filled.ContentPaste
-          import androidx.compose.material.icons.filled.Download
-          import androidx.compose.material3.*
-          import androidx.compose.runtime.*
-          import androidx.compose.ui.Alignment
-          import androidx.compose.ui.Modifier
-          import androidx.compose.ui.platform.LocalClipboardManager
-          import androidx.compose.ui.text.font.FontWeight
-          import androidx.compose.ui.unit.dp
-          import androidx.compose.ui.unit.sp
-          import com.seal.app.ui.components.DownloadBottomSheet
-          import com.seal.app.viewmodel.DownloadViewModel
-
-          @OptIn(ExperimentalMaterial3Api::class)
-          @Composable
-          fun HomeScreen(viewModel: DownloadViewModel, sharedUrl: String?) {
-              var urlText       by remember { mutableStateOf(sharedUrl ?: "") }
-              var showSheet     by remember { mutableStateOf(false) }
-              val clipboard         = LocalClipboardManager.current
-              val downloadState by viewModel.downloadState.collectAsState()
-              val isDownloading by viewModel.isDownloading.collectAsState()
-
-              if (showSheet) {
-                  DownloadBottomSheet(
-                      url        = urlText,
-                      onDismiss  = { showSheet = false },
-                      onDownload = { type ->
-                          showSheet = false
-                          viewModel.startDownload(urlText, type)
-                      }
-                  )
-              }
-
-              Box(modifier = Modifier.fillMaxSize()) {
-                  Column(
-                      modifier            = Modifier.fillMaxSize().padding(horizontal = 24.dp),
-                      horizontalAlignment = Alignment.CenterHorizontally
-                  ) {
-                      Spacer(modifier = Modifier.height(64.dp))
-                      Text(
-                          text  = "Seal",
-                          style = MaterialTheme.typography.displayLarge.copy(
-                              fontWeight = FontWeight.ExtraBold,
-                              fontSize   = 72.sp,
-                              color      = MaterialTheme.colorScheme.primary
-                          )
-                      )
-                      Text(
-                          text  = "Media Downloader",
-                          style = MaterialTheme.typography.bodyLarge,
-                          color = MaterialTheme.colorScheme.onSurfaceVariant
-                      )
-                      Spacer(modifier = Modifier.height(48.dp))
-                      OutlinedTextField(
-                          value         = urlText,
-                          onValueChange = { urlText = it },
-                          modifier      = Modifier.fillMaxWidth(),
-                          label         = { Text("Video link") },
-                          placeholder   = { Text("https://...") },
-                          singleLine    = true,
-                          enabled       = !isDownloading,
-                          shape         = RoundedCornerShape(16.dp),
-                          colors        = OutlinedTextFieldDefaults.colors(
-                              focusedBorderColor   = MaterialTheme.colorScheme.primary,
-                              unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                              focusedLabelColor    = MaterialTheme.colorScheme.primary,
-                              cursorColor          = MaterialTheme.colorScheme.primary,
-                          )
-                      )
-                      Spacer(modifier = Modifier.height(24.dp))
-
-                      if (isDownloading) {
-                          LinearProgressIndicator(
-                              modifier = Modifier.fillMaxWidth(),
-                              color    = MaterialTheme.colorScheme.primary
-                          )
-                          Spacer(modifier = Modifier.height(12.dp))
-                      }
-
-                      AnimatedVisibility(visible = downloadState.isNotEmpty()) {
-                          Card(
-                              modifier = Modifier.fillMaxWidth(),
-                              colors   = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                              shape    = RoundedCornerShape(12.dp)
-                          ) {
-                              Text(
-                                  text     = downloadState,
-                                  modifier = Modifier.padding(16.dp),
-                                  style    = MaterialTheme.typography.bodyMedium,
-                                  color    = MaterialTheme.colorScheme.onSurface
-                              )
-                          }
-                      }
-                  }
-
-                  Column(
-                      modifier            = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 24.dp),
-                      horizontalAlignment = Alignment.End,
-                      verticalArrangement = Arrangement.spacedBy(12.dp)
-                  ) {
-                      SmallFloatingActionButton(
-                          onClick        = { clipboard.getText()?.text?.let { urlText = it } },
-                          shape          = CircleShape,
-                          containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                          contentColor   = MaterialTheme.colorScheme.onSurfaceVariant
-                      ) {
-                          Icon(Icons.Filled.ContentPaste, contentDescription = "Paste", modifier = Modifier.size(20.dp))
-                      }
-                      FloatingActionButton(
-                          onClick        = { if (urlText.isNotBlank() && !isDownloading) showSheet = true },
-                          shape          = RoundedCornerShape(16.dp),
-                          containerColor = if (isDownloading) MaterialTheme.colorScheme.surfaceVariant
-                                           else MaterialTheme.colorScheme.primary,
-                          contentColor   = if (isDownloading) MaterialTheme.colorScheme.onSurfaceVariant
-                                           else MaterialTheme.colorScheme.onPrimary
-                      ) {
-                          Row(
-                              verticalAlignment = Alignment.CenterVertically,
-                              modifier          = Modifier.padding(horizontal = 16.dp)
-                          ) {
-                              Icon(Icons.Filled.Download, contentDescription = "Download")
-                              Spacer(modifier = Modifier.width(8.dp))
-                              Text(
-                                  if (isDownloading) "Downloading..." else "Download",
-                                  fontWeight = FontWeight.SemiBold
-                              )
-                          }
-                      }
-                  }
-              }
-          }
-          SEAL_EOF
+          EOF
 
       - name: Write LibraryScreen.kt
         run: |
-          cat > app/src/main/java/com/seal/app/ui/screens/LibraryScreen.kt << 'SEAL_EOF'
-          package com.seal.app.ui.screens
+          cat > app/src/main/java/com/example/seal/ui/screens/LibraryScreen.kt << 'EOF'
+          package com.example.seal.ui.screens
 
           import androidx.compose.foundation.layout.*
           import androidx.compose.material.icons.Icons
@@ -588,12 +561,12 @@ jobs:
                   }
               }
           }
-          SEAL_EOF
+          EOF
 
       - name: Write SettingsScreen.kt
         run: |
-          cat > app/src/main/java/com/seal/app/ui/screens/SettingsScreen.kt << 'SEAL_EOF'
-          package com.seal.app.ui.screens
+          cat > app/src/main/java/com/example/seal/ui/screens/SettingsScreen.kt << 'EOF'
+          package com.example.seal.ui.screens
 
           import androidx.compose.foundation.clickable
           import androidx.compose.foundation.layout.*
@@ -605,7 +578,7 @@ jobs:
           import androidx.compose.runtime.Composable
           import androidx.compose.ui.Modifier
           import androidx.compose.ui.unit.dp
-          import com.seal.app.viewmodel.DownloadViewModel
+          import com.example.seal.viewmodel.DownloadViewModel
 
           @Composable
           fun SettingsScreen(viewModel: DownloadViewModel) {
@@ -620,14 +593,10 @@ jobs:
                   }
                   item { SectionHeader("General") }
                   item { SettingsRow(Icons.Outlined.Tune,        "General",            "App behaviour & notifications") }
-                  item { Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)) }
+                  item { HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)) }
                   item { SectionHeader("Storage") }
-                  item { SettingsRow(Icons.Outlined.FolderOpen,  "Download directory", viewModel.downloadPath) }
-                  item { Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)) }
-                  item { SectionHeader("Format") }
-                  item { SettingsRow(Icons.Outlined.HighQuality, "Format settings",    "Audio: MP3 320kbps - Video: Best MP4") }
-                  item { SettingsRow(Icons.Outlined.Subtitles,   "Subtitles",          "Auto-embed subtitles when available") }
-                  item { Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)) }
+                  item { SettingsRow(Icons.Outlined.FolderOpen,  "Download directory", "Downloads/Seal") }
+                  item { HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)) }
                   item { SectionHeader("About") }
                   item { SettingsRow(Icons.Outlined.Info,        "Seal",               "v1.0.0 - Powered by yt-dlp") }
                   item { Spacer(modifier = Modifier.height(32.dp)) }
@@ -659,12 +628,12 @@ jobs:
                   colors            = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background)
               )
           }
-          SEAL_EOF
+          EOF
 
       - name: Write DownloadSheet.kt
         run: |
-          cat > app/src/main/java/com/seal/app/ui/components/DownloadSheet.kt << 'SEAL_EOF'
-          package com.seal.app.ui.components
+          cat > app/src/main/java/com/example/seal/ui/components/DownloadSheet.kt << 'EOF'
+          package com.example.seal.ui.components
 
           import androidx.compose.foundation.layout.*
           import androidx.compose.foundation.shape.RoundedCornerShape
@@ -748,180 +717,73 @@ jobs:
                       if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
                   ),
                   colors = CardDefaults.cardColors(
-                      containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer
-                                       else MaterialTheme.colorScheme.surfaceVariant
+                      containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
                   )
               ) {
                   Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                       Icon(icon, contentDescription = title, modifier = Modifier.size(32.dp),
-                          tint = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer
-                                 else MaterialTheme.colorScheme.onSurfaceVariant)
+                          tint = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
                       Spacer(modifier = Modifier.height(8.dp))
                       Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
-                          color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer
-                                  else MaterialTheme.colorScheme.onSurface)
+                          color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface)
                       Spacer(modifier = Modifier.height(4.dp))
                       Text(subtitle, style = MaterialTheme.typography.bodySmall,
-                          color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer
-                                  else MaterialTheme.colorScheme.onSurfaceVariant)
+                          color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
                   }
               }
           }
-          SEAL_EOF
+          EOF
 
-      - name: Write YtDlpRunner.kt
+      # ─────────────────────────────────────────
+      # 8. كتابة gradle.properties
+      # ─────────────────────────────────────────
+      - name: Write gradle.properties
         run: |
-          cat > app/src/main/java/com/seal/app/util/YtDlpRunner.kt << 'SEAL_EOF'
-          package com.seal.app.util
+          cat > gradle.properties << 'EOF'
+          org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=512m
+          android.useAndroidX=true
+          kotlin.code.style=official
+          android.nonTransitiveRClass=true
+          org.gradle.parallel=true
+          org.gradle.caching=true
+          EOF
 
-          import android.content.Context
-          import android.os.Environment
-          import com.yausername.youtubedl_android.YoutubeDL
-          import com.yausername.youtubedl_android.YoutubeDLRequest
-          import kotlinx.coroutines.Dispatchers
-          import kotlinx.coroutines.withContext
-          import java.io.File
-
-          object YtDlpRunner {
-
-              fun getDownloadDir(context: Context): File {
-                  val dir = File(
-                      context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
-                      "Seal"
-                  )
-                  dir.mkdirs()
-                  return dir
-              }
-
-              suspend fun download(
-                  context: Context,
-                  url: String,
-                  type: String,
-                  onProgress: (String) -> Unit
-              ): Boolean = withContext(Dispatchers.IO) {
-                  try {
-                      val downloadDir = getDownloadDir(context)
-                      val outputPath  = "${downloadDir.absolutePath}/%(title)s.%(ext)s"
-
-                      val request = YoutubeDLRequest(url)
-                      request.addOption("--no-playlist")
-                      request.addOption("-o", outputPath)
-                      request.addOption("--no-check-certificates")
-
-                      if (type == "audio") {
-                          request.addOption("-x")
-                          request.addOption("--audio-format", "mp3")
-                          request.addOption("--audio-quality", "0")
-                          request.addOption("--embed-thumbnail")
-                          request.addOption("--add-metadata")
-                      } else {
-                          request.addOption("-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best")
-                          request.addOption("--merge-output-format", "mp4")
-                      }
-
-                      YoutubeDL.getInstance().execute(request) { progress, _, line ->
-                          val msg = when {
-                              line.isNullOrBlank() -> "Downloading... ${progress.toInt()}%"
-                              else                 -> line
-                          }
-                          onProgress(msg)
-                      }
-                      true
-                  } catch (e: Exception) {
-                      onProgress("Error: ${e.message ?: "Unknown error"}")
-                      false
-                  }
-              }
-          }
-          SEAL_EOF
-
-      - name: Write DownloadViewModel.kt
+      # ─────────────────────────────────────────
+      # 9. إعداد Gradle Wrapper
+      # ─────────────────────────────────────────
+      - name: Set up Gradle Wrapper
         run: |
-          cat > app/src/main/java/com/seal/app/viewmodel/DownloadViewModel.kt << 'SEAL_EOF'
-          package com.seal.app.viewmodel
+          mkdir -p gradle/wrapper
+          cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.7-bin.zip
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          EOF
 
-          import android.app.Application
-          import android.os.Environment
-          import androidx.lifecycle.AndroidViewModel
-          import androidx.lifecycle.viewModelScope
-          import com.seal.app.ui.components.DownloadType
-          import com.seal.app.util.YtDlpRunner
-          import kotlinx.coroutines.Dispatchers
-          import kotlinx.coroutines.flow.MutableStateFlow
-          import kotlinx.coroutines.flow.StateFlow
-          import kotlinx.coroutines.launch
-          import java.io.File
+          wget -q https://services.gradle.org/distributions/gradle-8.7-bin.zip -O /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /tmp/gradle
+          /tmp/gradle/gradle-8.7/bin/gradle wrapper --gradle-version 8.7 || true
 
-          class DownloadViewModel(application: Application) : AndroidViewModel(application) {
+      # ─────────────────────────────────────────
+      # 10. منح صلاحية التنفيذ لـ gradlew
+      # ─────────────────────────────────────────
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
 
-              private val _downloadState  = MutableStateFlow("")
-              val downloadState: StateFlow<String> = _downloadState
-
-              private val _isDownloading  = MutableStateFlow(false)
-              val isDownloading: StateFlow<Boolean> = _isDownloading
-
-              val downloadPath: String
-                  get() {
-                      val dir = File(
-                          getApplication<Application>()
-                              .getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
-                          "Seal"
-                      )
-                      return dir.absolutePath
-                  }
-
-              fun startDownload(url: String, type: DownloadType) {
-                  if (url.isBlank() || _isDownloading.value) return
-
-                  viewModelScope.launch(Dispatchers.Main) {
-                      _isDownloading.value = true
-                      _downloadState.value = "Initializing..."
-
-                      try {
-                          val typeStr = if (type == DownloadType.AUDIO) "audio" else "video"
-
-                          val success = YtDlpRunner.download(
-                              context    = getApplication(),
-                              url        = url,
-                              type       = typeStr
-                          ) { line ->
-                              _downloadState.value = line
-                          }
-
-                          _downloadState.value = if (success)
-                              "Download complete! File saved to:\n$downloadPath"
-                          else
-                              "Download failed. Please check the URL and try again."
-
-                      } catch (e: Exception) {
-                          _downloadState.value = "Error: ${e.message ?: "Unexpected error occurred"}"
-                      } finally {
-                          _isDownloading.value = false
-                      }
-                  }
-              }
-          }
-          SEAL_EOF
-
-      - name: Install Gradle and generate wrapper
-        run: |
-          wget -q https://services.gradle.org/distributions/gradle-8.4-bin.zip -O /tmp/gradle.zip
-          unzip -q /tmp/gradle.zip -d /tmp/
-          /tmp/gradle-8.4/bin/gradle wrapper \
-              --gradle-version 8.4 \
-              --distribution-type bin \
-              --project-dir .
-          chmod +x gradlew
-
+      # ─────────────────────────────────────────
+      # 11. بناء APK
+      # ─────────────────────────────────────────
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
 
-      - name: Verify APK exists
-        run: ls -lh app/build/outputs/apk/debug/
-
+      # ─────────────────────────────────────────
+      # 12. رفع الـ APK كـ Artifact
+      # ─────────────────────────────────────────
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Seal-debug-apk
+          name: seal-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 14
+          retention-days: 7
