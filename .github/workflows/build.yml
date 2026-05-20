@@ -38,6 +38,15 @@ jobs:
           mkdir -p app/src/main/res/values
           mkdir -p gradle/wrapper
 
+      - name: Write gradle.properties
+        run: |
+          cat > gradle.properties << 'SEAL_EOF'
+          android.useAndroidX=true
+          android.enableJetifier=true
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          kotlin.code.style=official
+          SEAL_EOF
+
       - name: Write settings.gradle.kts
         run: |
           cat > settings.gradle.kts << 'SEAL_EOF'
@@ -799,8 +808,6 @@ jobs:
               --distribution-type bin \
               --project-dir .
           chmod +x gradlew
-          echo "Wrapper ready:"
-          ls -lh gradlew
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
