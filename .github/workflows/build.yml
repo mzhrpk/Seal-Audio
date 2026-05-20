@@ -15,9 +15,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ─────────────────────────────────────────
-      # 1. إعداد Java 17
-      # ─────────────────────────────────────────
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -25,9 +22,6 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      # ─────────────────────────────────────────
-      # 2. كتابة settings.gradle.kts
-      # ─────────────────────────────────────────
       - name: Write settings.gradle.kts
         run: |
           cat > settings.gradle.kts << 'EOF'
@@ -49,9 +43,6 @@ jobs:
           include(":app")
           EOF
 
-      # ─────────────────────────────────────────
-      # 3. كتابة build.gradle.kts (المشروع الجذر)
-      # ─────────────────────────────────────────
       - name: Write root build.gradle.kts
         run: |
           cat > build.gradle.kts << 'EOF'
@@ -61,9 +52,6 @@ jobs:
           }
           EOF
 
-      # ─────────────────────────────────────────
-      # 4. كتابة app/build.gradle.kts
-      # ─────────────────────────────────────────
       - name: Write app/build.gradle.kts
         run: |
           cat > app/build.gradle.kts << 'EOF'
@@ -125,11 +113,9 @@ jobs:
           val youtubedlAndroid = "0.18.1"
 
           dependencies {
-              // ── youtubedl-android (Maven Central) ──────────────────────────
               implementation("io.github.junkfood02.youtubedl-android:library:$youtubedlAndroid")
               implementation("io.github.junkfood02.youtubedl-android:ffmpeg:$youtubedlAndroid")
 
-              // ── Jetpack Compose BOM ─────────────────────────────────────────
               val composeBom = platform("androidx.compose:compose-bom:2024.04.01")
               implementation(composeBom)
               implementation("androidx.compose.ui:ui")
@@ -137,38 +123,30 @@ jobs:
               implementation("androidx.compose.ui:ui-tooling-preview")
               implementation("androidx.compose.material3:material3")
               implementation("androidx.compose.material:material-icons-extended")
-              // ── AndroidX ───────────────────────────────────────────────────
+
               implementation("androidx.core:core-ktx:1.13.1")
               implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
               implementation("androidx.activity:activity-compose:1.9.0")
               implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
               implementation("androidx.navigation:navigation-compose:2.7.6")
 
-              // ── Coroutines ─────────────────────────────────────────────────
               implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
 
-              // ── Debug ───────────────────────────────────────────────────────
               debugImplementation("androidx.compose.ui:ui-tooling")
               debugImplementation("androidx.compose.ui:ui-test-manifest")
           }
           EOF
 
-      # ─────────────────────────────────────────
-      # 5. كتابة AndroidManifest.xml
-      # ─────────────────────────────────────────
       - name: Write AndroidManifest.xml
         run: |
           mkdir -p app/src/main
-  
           cat > app/src/main/AndroidManifest.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
               <uses-permission android:name="android.permission.INTERNET" />
-              <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
-                  android:maxSdkVersion="32" />
-              <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-                  android:maxSdkVersion="29" />
+              <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+              <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
               <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
               <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
               <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
@@ -176,6 +154,7 @@ jobs:
               <application
                   android:name=".SealApplication"
                   android:allowBackup="true"
+                  android:label="@string/app_name"
                   android:supportsRtl="true"
                   android:theme="@style/Theme.Seal"
                   android:extractNativeLibs="true"
@@ -205,22 +184,17 @@ jobs:
           </manifest>
           EOF
 
-      # ─────────────────────────────────────────
-      # 6. كتابة SealApplication.kt
-      # ─────────────────────────────────────────
       - name: Write SealApplication.kt
         run: |
           mkdir -p app/src/main/java/com/example/seal
           cat > app/src/main/java/com/example/seal/SealApplication.kt << 'EOF'
           package com.example.seal
-
           import android.app.Application
           import android.util.Log
           import com.yausername.ffmpeg.FFmpeg
           import com.yausername.youtubedl_android.YoutubeDL
 
           class SealApplication : Application() {
-
               override fun onCreate() {
                   super.onCreate()
                   try {
@@ -234,15 +208,11 @@ jobs:
           }
           EOF
 
-      # ─────────────────────────────────────────
-      # 7. كتابة DownloadViewModel.kt
-      # ─────────────────────────────────────────
       - name: Write DownloadViewModel.kt
         run: |
           mkdir -p app/src/main/java/com/example/seal/viewmodel
           cat > app/src/main/java/com/example/seal/viewmodel/DownloadViewModel.kt << 'EOF'
           package com.example.seal.viewmodel
-
           import android.app.Application
           import android.os.Environment
           import android.util.Log
@@ -266,7 +236,6 @@ jobs:
           }
 
           class DownloadViewModel(application: Application) : AndroidViewModel(application) {
-
               private val _downloadState = MutableStateFlow<DownloadState>(DownloadState.Idle)
               val downloadState: StateFlow<DownloadState> = _downloadState
 
@@ -275,18 +244,13 @@ jobs:
                       _downloadState.value = DownloadState.Error("الرجاء إدخال رابط صحيح")
                       return
                   }
-
                   viewModelScope.launch {
                       _downloadState.value = DownloadState.Loading
-
                       withContext(Dispatchers.IO) {
                           try {
-                              val downloadsDir = Environment.getExternalStoragePublicDirectory(
-                                  Environment.DIRECTORY_DOWNLOADS
-                              )
+                              val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
                               val outputDir = File(downloadsDir, "Seal").also { it.mkdirs() }
                               val outputTemplate = File(outputDir, "%(title)s.%(ext)s").absolutePath
-
                               val request = YoutubeDLRequest(url).apply {
                                   addOption("-o", outputTemplate)
                                   addOption("--no-playlist")
@@ -302,61 +266,32 @@ jobs:
                                   addOption("--socket-timeout", "30")
                                   addOption("-R", "3")
                               }
-
                               YoutubeDL.getInstance().execute(request) { progress, _, line ->
-                                  _downloadState.value = DownloadState.Progress(
-                                      percent = progress,
-                                      message = line ?: "جاري التحميل..."
-                                  )
+                                  _downloadState.value = DownloadState.Progress(percent = progress, message = line ?: "جاري التحميل...")
                               }
-
                               _downloadState.value = DownloadState.Success(outputDir.absolutePath)
-
                           } catch (e: InterruptedException) {
                               _downloadState.value = DownloadState.Idle
                           } catch (e: Exception) {
-                              val errorMsg = e.message ?: "حدث خطأ غير معروف"
-                              Log.e("DownloadViewModel", "Download failed: $errorMsg", e)
-                              _downloadState.value = DownloadState.Error(errorMsg)
+                              _downloadState.value = DownloadState.Error(e.message ?: "خطأ غير معروف")
                           }
                       }
                   }
               }
-
-              fun cancelDownload() {
-                  viewModelScope.launch(Dispatchers.IO) {
-                      try {
-                          YoutubeDL.getInstance().destroyProcessById("download_process")
-                      } catch (e: Exception) {
-                          Log.e("DownloadViewModel", "Cancel error: ${e.message}")
-                      }
-                      _downloadState.value = DownloadState.Idle
-                  }
-              }
-
-              fun resetState() {
-                  _downloadState.value = DownloadState.Idle
-              }
           }
           EOF
 
-      # ─────────────────────────────────────────
-      # 7.5. إنشاء مجلدات وملفات الواجهة (معدلة بدون HomeScreen)
-      # ─────────────────────────────────────────
-      - name: Create UI directories
+      - name: Create UI directories and files
         run: |
+          mkdir -p app/src/main/res/values
           mkdir -p app/src/main/java/com/example/seal/ui/theme
           mkdir -p app/src/main/java/com/example/seal/ui/screens
           mkdir -p app/src/main/java/com/example/seal/ui/components
-          mkdir -p app/src/main/res/values
 
-      - name: Write resource files
-        run: |
           cat > app/src/main/res/values/strings.xml << 'EOF'
-          <resources>
-              <string name="app_name">Seal</string>
-          </resources>
+          <resources><string name="app_name">Seal</string></resources>
           EOF
+
           cat > app/src/main/res/values/themes.xml << 'EOF'
           <resources>
               <style name="Theme.Seal" parent="Theme.AppCompat.NoActionBar">
@@ -367,80 +302,50 @@ jobs:
           </resources>
           EOF
 
-      - name: Write Color.kt
-        run: |
           cat > app/src/main/java/com/example/seal/ui/theme/Color.kt << 'EOF'
           package com.example.seal.ui.theme
           import androidx.compose.ui.graphics.Color
-          val Primary            = Color(0xFF98D68A)
-          val OnPrimary          = Color(0xFF14380E)
-          val PrimaryContainer   = Color(0xFF2B5023)
+          val Primary = Color(0xFF98D68A)
+          val OnPrimary = Color(0xFF14380E)
+          val PrimaryContainer = Color(0xFF2B5023)
           val OnPrimaryContainer = Color(0xFFB4F3A4)
-          val Background         = Color(0xFF111210)
-          val OnBackground       = Color(0xFFE2E3DC)
-          val Surface            = Color(0xFF1A1C18)
-          val OnSurface          = Color(0xFFE2E3DC)
-          val SurfaceVariant     = Color(0xFF424940)
-          val OnSurfaceVariant   = Color(0xFF8C9388)
-          val Outline            = Color(0xFF8C9388)
-          val Error              = Color(0xFFFFB4AB)
-          val OnError            = Color(0xFF690005)
+          val Background = Color(0xFF111210)
+          val OnBackground = Color(0xFFE2E3DC)
+          val Surface = Color(0xFF1A1C18)
+          val OnSurface = Color(0xFFE2E3DC)
+          val SurfaceVariant = Color(0xFF424940)
+          val OnSurfaceVariant = Color(0xFF8C9388)
+          val Outline = Color(0xFF8C9388)
+          val Error = Color(0xFFFFB4AB)
+          val OnError = Color(0xFF690005)
           EOF
 
-      - name: Write Type.kt
-        run: |
           cat > app/src/main/java/com/example/seal/ui/theme/Type.kt << 'EOF'
           package com.example.seal.ui.theme
           import androidx.compose.material3.Typography
-          import androidx.compose.ui.text.TextStyle
-          import androidx.compose.ui.text.font.FontWeight
-          import androidx.compose.ui.unit.sp
-          val Typography = Typography(
-              displayLarge = TextStyle(fontWeight = FontWeight.Bold,     fontSize = 57.sp, letterSpacing = (-0.25).sp),
-              titleLarge   = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 22.sp),
-              bodyLarge    = TextStyle(fontWeight = FontWeight.Normal,   fontSize = 16.sp, lineHeight = 24.sp),
-              labelSmall   = TextStyle(fontWeight = FontWeight.Medium,   fontSize = 11.sp)
-          )
+          val Typography = Typography()
           EOF
 
-      - name: Write Theme.kt
-        run: |
           cat > app/src/main/java/com/example/seal/ui/theme/Theme.kt << 'EOF'
           package com.example.seal.ui.theme
           import androidx.compose.material3.*
           import androidx.compose.runtime.Composable
           private val DarkColorScheme = darkColorScheme(
-              primary            = Primary,
-              onPrimary          = OnPrimary,
-              primaryContainer   = PrimaryContainer,
-              onPrimaryContainer = OnPrimaryContainer,
-              background         = Background,
-              onBackground       = OnBackground,
-              surface            = Surface,
-              onSurface          = OnSurface,
-              surfaceVariant     = SurfaceVariant,
-              onSurfaceVariant   = OnSurfaceVariant,
-              outline            = Outline,
-              error              = Error,
-              onError            = OnError,
-              secondary          = PrimaryContainer,
-              onSecondary        = OnPrimaryContainer,
+              primary = Primary, onPrimary = OnPrimary, primaryContainer = PrimaryContainer,
+              onPrimaryContainer = OnPrimaryContainer, background = Background, onBackground = OnBackground,
+              surface = Surface, onSurface = OnSurface, surfaceVariant = SurfaceVariant,
+              onSurfaceVariant = OnSurfaceVariant, outline = Outline, error = Error, onError = OnError
           )
           @Composable
           fun SealTheme(content: @Composable () -> Unit) {
-              MaterialTheme(
-                  colorScheme = DarkColorScheme,
-                  typography  = Typography,
-                  content     = content
-              )
+              MaterialTheme(colorScheme = DarkColorScheme, typography = Typography, content = content)
           }
           EOF
 
-      -       - name: Write MainActivity.kt
+      - name: Write MainActivity.kt
         run: |
           cat > app/src/main/java/com/example/seal/MainActivity.kt << 'EOF'
           package com.example.seal
-
           import android.os.Bundle
           import androidx.activity.ComponentActivity
           import androidx.activity.compose.setContent
@@ -465,9 +370,9 @@ jobs:
           import com.example.seal.viewmodel.DownloadViewModel
 
           sealed class Screen(val route: String) {
-              object Home     : Screen("home")
+              object Home : Screen("home")
               object Settings : Screen("settings")
-              object Library  : Screen("library")
+              object Library : Screen("library")
           }
 
           class MainActivity : ComponentActivity() {
@@ -486,12 +391,12 @@ jobs:
           fun SealApp(viewModel: DownloadViewModel, sharedUrl: String?) {
               val navController = rememberNavController()
               val navItems = listOf(
-                  Triple(Screen.Home,     Icons.Filled.Home,         "Home"),
-                  Triple(Screen.Settings, Icons.Filled.Settings,     "Settings"),
-                  Triple(Screen.Library,  Icons.Outlined.FolderOpen, "Library"),
+                  Triple(Screen.Home, Icons.Filled.Home, "Home"),
+                  Triple(Screen.Settings, Icons.Filled.Settings, "Settings"),
+                  Triple(Screen.Library, Icons.Outlined.FolderOpen, "Library")
               )
               Scaffold(
-                  modifier       = Modifier.fillMaxSize(),
+                  modifier = Modifier.fillMaxSize(),
                   containerColor = MaterialTheme.colorScheme.background,
                   bottomBar = {
                       NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
@@ -503,30 +408,25 @@ jobs:
                                   onClick = {
                                       navController.navigate(screen.route) {
                                           popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                          launchSingleTop = true
-                                          restoreState    = true
+                                          launchSingleTop = true; restoreState = true
                                       }
                                   },
-                                  icon   = { Icon(icon, contentDescription = label) },
-                                  label  = { Text(label) },
+                                  icon = { Icon(icon, contentDescription = label) },
+                                  label = { Text(label) },
                                   colors = NavigationBarItemDefaults.colors(
-                                      selectedIconColor   = MaterialTheme.colorScheme.onPrimaryContainer,
-                                      indicatorColor      = MaterialTheme.colorScheme.primaryContainer,
-                                      unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                      selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                      indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                      unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant
                                   )
                               )
                           }
                       }
                   }
               ) { innerPadding ->
-                  NavHost(
-                      navController    = navController,
-                      startDestination = Screen.Home.route,
-                      modifier         = Modifier.padding(innerPadding)
-                  ) {
-                      composable(Screen.Home.route)     { HomeScreen(viewModel = viewModel, sharedUrl = sharedUrl) }
-                      composable(Screen.Settings.route) { SettingsScreen(viewModel = viewModel) }
-                      composable(Screen.Library.route)  { LibraryScreen() }
+                  NavHost(navController = navController, startDestination = Screen.Home.route, modifier = Modifier.padding(innerPadding)) {
+                      composable(Screen.Home.route) { HomeScreen(viewModel = viewModel, sharedUrl = sharedUrl) }
+                      composable(Screen.Settings.route) { SettingsScreen() }
+                      composable(Screen.Library.route) { LibraryScreen() }
                   }
               }
           }
@@ -536,7 +436,6 @@ jobs:
         run: |
           cat > app/src/main/java/com/example/seal/ui/screens/HomeScreen.kt << 'EOF'
           package com.example.seal.ui.screens
-
           import androidx.compose.animation.AnimatedVisibility
           import androidx.compose.foundation.layout.*
           import androidx.compose.foundation.shape.CircleShape
@@ -560,15 +459,15 @@ jobs:
           @OptIn(ExperimentalMaterial3Api::class)
           @Composable
           fun HomeScreen(viewModel: DownloadViewModel, sharedUrl: String?) {
-              var urlText       by remember { mutableStateOf(sharedUrl ?: "") }
-              var showSheet     by remember { mutableStateOf(false) }
-              val clipboard     = LocalClipboardManager.current
+              var urlText by remember { mutableStateOf(sharedUrl ?: "") }
+              var showSheet by remember { mutableStateOf(false) }
+              val clipboard = LocalClipboardManager.current
               val downloadState by viewModel.downloadState.collectAsState()
 
               if (showSheet) {
                   DownloadBottomSheet(
-                      url        = urlText,
-                      onDismiss  = { showSheet = false },
+                      url = urlText,
+                      onDismiss = { showSheet = false },
                       onDownload = { type ->
                           showSheet = false
                           viewModel.startDownload(urlText, type == DownloadType.AUDIO)
@@ -577,88 +476,43 @@ jobs:
               }
 
               Box(modifier = Modifier.fillMaxSize()) {
-                  Column(
-                      modifier            = Modifier.fillMaxSize().padding(horizontal = 24.dp),
-                      horizontalAlignment = Alignment.CenterHorizontally
-                  ) {
+                  Column(modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                       Spacer(modifier = Modifier.height(64.dp))
-                      Text(
-                          text  = "Seal",
-                          style = MaterialTheme.typography.displayLarge.copy(
-                              fontWeight = FontWeight.ExtraBold,
-                              fontSize   = 72.sp,
-                              color      = MaterialTheme.colorScheme.primary
-                          )
-                      )
-                      Text(
-                          text  = "Media Downloader",
-                          style = MaterialTheme.typography.bodyLarge,
-                          color = MaterialTheme.colorScheme.onSurfaceVariant
-                      )
+                      Text("Seal", style = MaterialTheme.typography.displayLarge.copy(fontWeight = FontWeight.ExtraBold, fontSize = 72.sp, color = MaterialTheme.colorScheme.primary))
+                      Text("Media Downloader", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                       Spacer(modifier = Modifier.height(48.dp))
                       OutlinedTextField(
-                          value         = urlText,
-                          onValueChange = { urlText = it },
-                          modifier      = Modifier.fillMaxWidth(),
-                          label         = { Text("Video link") },
-                          placeholder   = { Text("https://...") },
-                          singleLine    = true,
-                          shape         = RoundedCornerShape(16.dp),
-                          colors        = OutlinedTextFieldDefaults.colors(
-                              focusedBorderColor   = MaterialTheme.colorScheme.primary,
+                          value = urlText, onValueChange = { urlText = it }, modifier = Modifier.fillMaxWidth(),
+                          label = { Text("Video link") }, placeholder = { Text("https://...") }, singleLine = true,
+                          shape = RoundedCornerShape(16.dp),
+                          colors = OutlinedTextFieldDefaults.colors(
+                              focusedBorderColor = MaterialTheme.colorScheme.primary,
                               unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                              focusedLabelColor    = MaterialTheme.colorScheme.primary,
-                              cursorColor          = MaterialTheme.colorScheme.primary,
+                              focusedLabelColor = MaterialTheme.colorScheme.primary,
+                              cursorColor = MaterialTheme.colorScheme.primary
                           )
                       )
                       Spacer(modifier = Modifier.height(24.dp))
                       
                       val stateText = when (val s = downloadState) {
-                          is DownloadState.Idle -> ""
                           is DownloadState.Loading -> "جاري بدء التحميل..."
                           is DownloadState.Progress -> "%.1f%% - %s".format(s.percent, s.message)
                           is DownloadState.Success -> "تم التحميل بنجاح!\n${s.filePath}"
                           is DownloadState.Error -> "خطأ: ${s.message}"
+                          else -> ""
                       }
-
                       AnimatedVisibility(visible = stateText.isNotEmpty()) {
-                          Card(
-                              modifier = Modifier.fillMaxWidth(),
-                              colors   = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                              shape    = RoundedCornerShape(12.dp)
-                          ) {
-                              Text(
-                                  text     = stateText,
-                                  modifier = Modifier.padding(16.dp),
-                                  style    = MaterialTheme.typography.bodyMedium,
-                                  color    = MaterialTheme.colorScheme.onSurface
-                              )
+                          Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), shape = RoundedCornerShape(12.dp)) {
+                              Text(text = stateText, modifier = Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurface)
                           }
                       }
                   }
-                  Column(
-                      modifier            = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 24.dp),
-                      horizontalAlignment = Alignment.End,
-                      verticalArrangement = Arrangement.spacedBy(12.dp)
-                  ) {
-                      SmallFloatingActionButton(
-                          onClick        = { clipboard.getText()?.text?.let { urlText = it } },
-                          shape          = CircleShape,
-                          containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                          contentColor   = MaterialTheme.colorScheme.onSurfaceVariant
-                      ) {
+                  Column(modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 24.dp), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                      SmallFloatingActionButton(onClick = { clipboard.getText()?.text?.let { urlText = it } }, shape = CircleShape, containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant) {
                           Icon(Icons.Filled.ContentPaste, contentDescription = "Paste", modifier = Modifier.size(20.dp))
                       }
-                      FloatingActionButton(
-                          onClick        = { if (urlText.isNotBlank()) showSheet = true },
-                          shape          = RoundedCornerShape(16.dp),
-                          containerColor = MaterialTheme.colorScheme.primary,
-                          contentColor   = MaterialTheme.colorScheme.onPrimary
-                      ) {
-                          Row(
-                              verticalAlignment = Alignment.CenterVertically,
-                              modifier          = Modifier.padding(horizontal = 16.dp)
-                          ) {
+                      FloatingActionButton(onClick = { if (urlText.isNotBlank()) showSheet = true }, shape = RoundedCornerShape(16.dp), containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary) {
+                          Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp)) {
                               Icon(Icons.Filled.Download, contentDescription = "Download")
                               Spacer(modifier = Modifier.width(8.dp))
                               Text("Download", fontWeight = FontWeight.SemiBold)
@@ -669,12 +523,10 @@ jobs:
           }
           EOF
 
-
-      - name: Write LibraryScreen.kt
+      - name: Write Library & Settings Screens
         run: |
           cat > app/src/main/java/com/example/seal/ui/screens/LibraryScreen.kt << 'EOF'
           package com.example.seal.ui.screens
-
           import androidx.compose.foundation.layout.*
           import androidx.compose.material.icons.Icons
           import androidx.compose.material.icons.outlined.FolderOpen
@@ -683,36 +535,21 @@ jobs:
           import androidx.compose.ui.Alignment
           import androidx.compose.ui.Modifier
           import androidx.compose.ui.unit.dp
-
           @Composable
           fun LibraryScreen() {
               Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                   Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                      Icon(
-                          imageVector        = Icons.Outlined.FolderOpen,
-                          contentDescription = "Empty library",
-                          modifier           = Modifier.size(80.dp),
-                          tint               = MaterialTheme.colorScheme.onSurfaceVariant
-                      )
+                      Icon(Icons.Outlined.FolderOpen, contentDescription = null, modifier = Modifier.size(80.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                       Spacer(modifier = Modifier.height(16.dp))
-                      Text(
-                          text  = "Empty",
-                          style = MaterialTheme.typography.titleMedium,
-                          color = MaterialTheme.colorScheme.onSurfaceVariant
-                      )
+                      Text("Empty", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                   }
               }
           }
           EOF
 
-      - name: Write SettingsScreen.kt
-        run: |
           cat > app/src/main/java/com/example/seal/ui/screens/SettingsScreen.kt << 'EOF'
           package com.example.seal.ui.screens
-
-          import androidx.compose.foundation.clickable
           import androidx.compose.foundation.layout.*
-          import androidx.compose.foundation.lazy.LazyColumn
           import androidx.compose.material.icons.Icons
           import androidx.compose.material.icons.filled.ChevronRight
           import androidx.compose.material.icons.outlined.*
@@ -720,55 +557,25 @@ jobs:
           import androidx.compose.runtime.Composable
           import androidx.compose.ui.Modifier
           import androidx.compose.ui.unit.dp
-          import com.example.seal.viewmodel.DownloadViewModel
-
           @Composable
-          fun SettingsScreen(viewModel: DownloadViewModel) {
-              LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-                  item {
-                      Text(
-                          text     = "Settings",
-                          style    = MaterialTheme.typography.headlineMedium,
-                          color    = MaterialTheme.colorScheme.onBackground,
-                          modifier = Modifier.padding(top = 24.dp, bottom = 16.dp, start = 8.dp)
-                      )
-                  }
-                  item { SectionHeader("General") }
-                  item { SettingsRow(Icons.Outlined.Tune,        "General",            "App behaviour & notifications") }
-                  item { HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)) }
-                  item { SectionHeader("Storage") }
-                  item { SettingsRow(Icons.Outlined.FolderOpen,  "Download directory", "Downloads/Seal") }
-                  item { HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)) }
-                  item { SectionHeader("About") }
-                  item { SettingsRow(Icons.Outlined.Info,        "Seal",               "v1.0.0 - Powered by yt-dlp") }
-                  item { Spacer(modifier = Modifier.height(32.dp)) }
+          fun SettingsScreen() {
+              Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                  Text("Settings", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.padding(top = 24.dp, bottom = 16.dp))
+                  Text("Storage", color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(vertical = 8.dp))
+                  ListItem(
+                      headlineContent = { Text("Download directory") },
+                      supportingContent = { Text("Downloads/Seal") },
+                      leadingContent = { Icon(Icons.Outlined.FolderOpen, null) },
+                      colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background)
+                  )
+                  Text("About", color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(vertical = 8.dp))
+                  ListItem(
+                      headlineContent = { Text("Seal") },
+                      supportingContent = { Text("v1.0.0 - Powered by yt-dlp") },
+                      leadingContent = { Icon(Icons.Outlined.Info, null) },
+                      colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background)
+                  )
               }
-          }
-
-          @Composable
-          private fun SectionHeader(text: String) {
-              Text(
-                  text     = text,
-                  style    = MaterialTheme.typography.labelLarge,
-                  color    = MaterialTheme.colorScheme.primary,
-                  modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
-              )
-          }
-
-          @Composable
-          private fun SettingsRow(
-              icon: androidx.compose.ui.graphics.vector.ImageVector,
-              title: String,
-              subtitle: String
-          ) {
-              ListItem(
-                  modifier          = Modifier.clickable {},
-                  headlineContent   = { Text(title,    color = MaterialTheme.colorScheme.onSurface) },
-                  supportingContent = { Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant) },
-                  leadingContent    = { Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
-                  trailingContent   = { Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.outline) },
-                  colors            = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background)
-              )
           }
           EOF
 
@@ -776,7 +583,6 @@ jobs:
         run: |
           cat > app/src/main/java/com/example/seal/ui/components/DownloadSheet.kt << 'EOF'
           package com.example.seal.ui.components
-
           import androidx.compose.foundation.layout.*
           import androidx.compose.foundation.shape.RoundedCornerShape
           import androidx.compose.material.icons.Icons
@@ -793,92 +599,30 @@ jobs:
 
           @OptIn(ExperimentalMaterial3Api::class)
           @Composable
-          fun DownloadBottomSheet(
-              url: String,
-              onDismiss: () -> Unit,
-              onDownload: (DownloadType) -> Unit
-          ) {
-              var selected   by remember { mutableStateOf<DownloadType?>(null) }
+          fun DownloadBottomSheet(url: String, onDismiss: () -> Unit, onDownload: (DownloadType) -> Unit) {
+              var selected by remember { mutableStateOf<DownloadType?>(null) }
               val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-              ModalBottomSheet(
-                  onDismissRequest = onDismiss,
-                  sheetState       = sheetState,
-                  containerColor   = MaterialTheme.colorScheme.surface,
-                  shape            = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-              ) {
-                  Column(
-                      modifier            = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp),
-                      horizontalAlignment = Alignment.CenterHorizontally
-                  ) {
-                      Text("Select Format",
-                          style      = MaterialTheme.typography.titleLarge,
-                          fontWeight = FontWeight.Bold,
-                          color      = MaterialTheme.colorScheme.onSurface)
-                      Spacer(modifier = Modifier.height(8.dp))
-                      Text(
-                          text  = url.take(50) + if (url.length > 50) "..." else "",
-                          style = MaterialTheme.typography.bodySmall,
-                          color = MaterialTheme.colorScheme.onSurfaceVariant
-                      )
+              ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = MaterialTheme.colorScheme.surface) {
+                  Column(modifier = Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                      Text("Select Format", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                       Spacer(modifier = Modifier.height(24.dp))
                       Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                          FormatCard(Modifier.weight(1f), Icons.Filled.Audiotrack, "Audio",
-                              "MP3 - 320kbps\nEmbedded metadata", selected == DownloadType.AUDIO) { selected = DownloadType.AUDIO }
-                          FormatCard(Modifier.weight(1f), Icons.Filled.VideoFile,  "Video",
-                              "Best quality\nMP4 + Audio",         selected == DownloadType.VIDEO) { selected = DownloadType.VIDEO }
+                          Button(onClick = { selected = DownloadType.AUDIO }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (selected == DownloadType.AUDIO) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)) {
+                              Text("Audio", color = if (selected == DownloadType.AUDIO) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface)
+                          }
+                          Button(onClick = { selected = DownloadType.VIDEO }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (selected == DownloadType.VIDEO) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)) {
+                              Text("Video", color = if (selected == DownloadType.VIDEO) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface)
+                          }
                       }
                       Spacer(modifier = Modifier.height(24.dp))
-                      Button(
-                          onClick  = { selected?.let { onDownload(it) } },
-                          enabled  = selected != null,
-                          modifier = Modifier.fillMaxWidth().height(52.dp),
-                          shape    = RoundedCornerShape(14.dp),
-                          colors   = ButtonDefaults.buttonColors(
-                              containerColor = MaterialTheme.colorScheme.primary,
-                              contentColor   = MaterialTheme.colorScheme.onPrimary
-                          )
-                      ) { Text("Confirm Download", fontWeight = FontWeight.Bold) }
-                  }
-              }
-          }
-
-          @OptIn(ExperimentalMaterial3Api::class)
-          @Composable
-          private fun FormatCard(
-              modifier: Modifier,
-              icon: androidx.compose.ui.graphics.vector.ImageVector,
-              title: String,
-              subtitle: String,
-              isSelected: Boolean,
-              onClick: () -> Unit
-          ) {
-              Card(
-                  modifier = modifier, onClick = onClick, shape = RoundedCornerShape(16.dp),
-                  border = androidx.compose.foundation.BorderStroke(
-                      if (isSelected) 2.dp else 1.dp,
-                      if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
-                  ),
-                  colors = CardDefaults.cardColors(
-                      containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
-                  )
-              ) {
-                  Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                      Icon(icon, contentDescription = title, modifier = Modifier.size(32.dp),
-                          tint = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
-                      Spacer(modifier = Modifier.height(8.dp))
-                      Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
-                          color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface)
-                      Spacer(modifier = Modifier.height(4.dp))
-                      Text(subtitle, style = MaterialTheme.typography.bodySmall,
-                          color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
+                      Button(onClick = { selected?.let { onDownload(it) } }, enabled = selected != null, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                          Text("Confirm Download")
+                      }
                   }
               }
           }
           EOF
 
-      # ─────────────────────────────────────────
-      # 8. كتابة gradle.properties
-      # ─────────────────────────────────────────
       - name: Write gradle.properties
         run: |
           cat > gradle.properties << 'EOF'
@@ -890,9 +634,6 @@ jobs:
           org.gradle.caching=true
           EOF
 
-      # ─────────────────────────────────────────
-      # 9. إعداد Gradle Wrapper
-      # ─────────────────────────────────────────
       - name: Set up Gradle Wrapper
         run: |
           mkdir -p gradle/wrapper
@@ -903,26 +644,16 @@ jobs:
           zipStoreBase=GRADLE_USER_HOME
           zipStorePath=wrapper/dists
           EOF
-
           wget -q https://services.gradle.org/distributions/gradle-8.7-bin.zip -O /tmp/gradle.zip
           unzip -q /tmp/gradle.zip -d /tmp/gradle
           /tmp/gradle/gradle-8.7/bin/gradle wrapper --gradle-version 8.7 || true
 
-      # ─────────────────────────────────────────
-      # 10. منح صلاحية التنفيذ لـ gradlew
-      # ─────────────────────────────────────────
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # ─────────────────────────────────────────
-      # 11. بناء APK
-      # ─────────────────────────────────────────
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
 
-      # ─────────────────────────────────────────
-      # 12. رفع الـ APK كـ Artifact
-      # ─────────────────────────────────────────
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
