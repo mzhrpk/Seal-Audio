@@ -208,14 +208,14 @@ jobs:
           }
           EOF
 
-      - name: Write DownloadViewModel.kt
+            - name: Write DownloadViewModel.kt
         run: |
           mkdir -p app/src/main/java/com/example/seal/viewmodel
           cat > app/src/main/java/com/example/seal/viewmodel/DownloadViewModel.kt << 'EOF'
           package com.example.seal.viewmodel
           import android.app.Application
+          import android.content.Context
           import android.os.Environment
-          import android.util.Log
           import androidx.lifecycle.AndroidViewModel
           import androidx.lifecycle.viewModelScope
           import com.yausername.youtubedl_android.YoutubeDL
@@ -236,8 +236,24 @@ jobs:
           }
 
           class DownloadViewModel(application: Application) : AndroidViewModel(application) {
+              private val prefs = application.getSharedPreferences("seal_settings", Context.MODE_PRIVATE)
+              
+              val embedMetadata = MutableStateFlow(prefs.getBoolean("embed_metadata", true))
+              val audioQuality = MutableStateFlow(prefs.getString("audio_quality", "0") ?: "0")
+
               private val _downloadState = MutableStateFlow<DownloadState>(DownloadState.Idle)
               val downloadState: StateFlow<DownloadState> = _downloadState
+
+              fun setEmbedMetadata(enabled: Boolean) {
+                  prefs.edit().putBoolean("embed_metadata", enabled).apply()
+                  embedMetadata.value = enabled
+              }
+
+              fun setAudioQuality(isHigh: Boolean) {
+                  val quality = if (isHigh) "0" else "5"
+                  prefs.edit().putString("audio_quality", quality).apply()
+                  audioQuality.value = quality
+              }
 
               fun startDownload(url: String, audioOnly: Boolean = false) {
                   if (url.isBlank()) {
@@ -247,38 +263,39 @@ jobs:
                   viewModelScope.launch {
                       withContext(Dispatchers.IO) {
                           try {
-                              // 1. تحديث المحرك بصمت لتجاوز حماية يوتيوب الجديدة
-                              _downloadState.value = DownloadState.Progress(0f, "جاري تحديث المحرك...")
+                              _downloadState.value = DownloadState.Progress(0f, "جاري التحديث والتحضير...")
                               YoutubeDL.getInstance().updateYoutubeDL(getApplication())
-
-                              // 2. بدء التحميل
                               _downloadState.value = DownloadState.Loading
+
                               val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
                               val outputDir = File(downloadsDir, "Seal").also { it.mkdirs() }
                               val outputTemplate = File(outputDir, "%(title)s.%(ext)s").absolutePath
+                              
                               val request = YoutubeDLRequest(url).apply {
                                   addOption("-o", outputTemplate)
                                   addOption("--no-playlist")
-                                  addOption("--no-warnings") // لجم التحذيرات المزعجة
-                                  addOption("--no-update")
+                                  addOption("--no-warnings")
+                                  
+                                  // تطبيق إعدادات الـ Metadata
+                                  if (embedMetadata.value) {
+                                      addOption("--embed-metadata")
+                                      addOption("--embed-thumbnail")
+                                  }
+
                                   if (audioOnly) {
                                       addOption("-x")
                                       addOption("--audio-format", "mp3")
-                                      addOption("--audio-quality", "0")
+                                      // تطبيق إعدادات الجودة
+                                      addOption("--audio-quality", audioQuality.value)
                                   } else {
                                       addOption("-f", "bestvideo+bestaudio/best")
                                       addOption("--merge-output-format", "mp4")
                                   }
-                                  addOption("--no-check-certificate")
-                                  addOption("--socket-timeout", "30")
-                                  addOption("-R", "3")
                               }
                               YoutubeDL.getInstance().execute(request) { progress, _, line ->
                                   _downloadState.value = DownloadState.Progress(percent = progress, message = line ?: "جاري التحميل...")
                               }
                               _downloadState.value = DownloadState.Success(outputDir.absolutePath)
-                          } catch (e: InterruptedException) {
-                              _downloadState.value = DownloadState.Idle
                           } catch (e: Exception) {
                               _downloadState.value = DownloadState.Error(e.message ?: "خطأ غير معروف")
                           }
